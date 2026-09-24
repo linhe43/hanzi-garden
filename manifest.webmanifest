@@ -24,5 +24,44 @@
       "type": "image/png",
       "purpose": "maskable"
     }
+  ],
+  "id": "./",
+  "description": "给孩子的识字游戏：听音找字、看图找字、翻牌配对、浇花开花，配合间隔复习，一关一关认识常用汉字。",
+  "categories": [
+    "education",
+    "kids"
+  ],
+  "orientation": "any",
+  "screenshots": [
+    {
+      "src": "screenshots/wide-1-home.png",
+      "sizes": "1920x1080",
+      "type": "image/png",
+      "form_factor": "wide"
+    },
+    {
+      "src": "screenshots/wide-2-learn.png",
+      "sizes": "1920x1080",
+      "type": "image/png",
+      "form_factor": "wide"
+    },
+    {
+      "src": "screenshots/wide-3-picture.png",
+      "sizes": "1920x1080",
+      "type": "image/png",
+      "form_factor": "wide"
+    },
+    {
+      "src": "screenshots/wide-4-flowers.png",
+      "sizes": "1920x1080",
+      "type": "image/png",
+      "form_factor": "wide"
+    },
+    {
+      "src": "screenshots/narrow-1-home.png",
+      "sizes": "780x1688",
+      "type": "image/png",
+      "form_factor": "narrow"
+    }
   ]
 }
