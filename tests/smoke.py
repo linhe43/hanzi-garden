@@ -180,11 +180,103 @@ def t_games_3_4(browser):
     pg.close()
 
 
+def charsets():
+    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    with open(os.path.join(root, "data", "charsets.json"), encoding="utf-8") as f:
+        return json.load(f)
+
+
+def open_settings(p):
+    """Parent settings need a 2-second hold; Shift+Enter is the keyboard equivalent."""
+    p.focus(".home-foot .parent")
+    p.keyboard.press("Shift+Enter")
+    p.wait_for_selector(".panel")
+
+
+def pick_library(p, lib_id):
+    open_settings(p)
+    p.click(f'.lib-card[data-lib="{lib_id}"]')
+    p.wait_for_selector(".home-actions")
+
+
+GAME_LABEL = {"learn": "学新字", "listen": "听音找字", "picture": "看图找字", "memory": "翻牌配对",
+              "flowers": "浇花开花", "fill": "选字填词"}
+BUILT_GAMES = {"learn", "listen", "picture", "memory", "flowers"}
+
+
+def t_libraries(browser):
+    """Switching libraries changes the home tag, map, group activities and the library defaults."""
+    data = charsets()
+    pg = Page(browser, NARROW)
+    p = pg.open()
+    for lib in data["libraries"]:
+        pick_library(p, lib["id"])
+        size = sum(len(g["chars"]) for g in lib["groups"])
+        tag = p.inner_text(".lib-tag")
+        check(lib["name"] in tag and f"/{size}" in tag, f"home tag wrong: {tag}")
+        open_settings(p)
+        check(p.get_attribute(f'.lib-card[data-lib="{lib["id"]}"]', "aria-checked") == "true", "selected card not marked")
+        session = p.eval_on_selector_all(".panel select", "(ss) => ss.map((s) => s.value)")
+        check(str(lib["profile"]["sessionMin"]) in session, f"session length not applied: {session}")
+        check(p.is_checked(".panel label.inline input") == lib["profile"]["showPinyin"], "pinyin default not applied")
+        pg.shot(f"settings-{lib['id']}")
+        p.click(".panel .btn.leaf")
+        p.click(".home-actions .btn.leaf")
+        p.wait_for_selector(".gcard")
+        check(p.inner_text(".stage-h") == lib["name"], "map title is not the library name")
+        check(p.locator(".gcard").count() == len(lib["groups"]), "map lists other libraries' groups")
+        check(p.inner_text(".gcard .num") == "第1关", "level numbers do not restart per library")
+        locked = p.eval_on_selector_all(".gcard", "(cs) => cs.map((c) => c.classList.contains('locked'))")
+        check(not locked[0] and all(locked[1:]), f"unlock state wrong for a fresh library: {locked[:3]}")
+        pg.shot(f"map-{lib['id']}")
+        p.locator(".gcard").first.click()
+        p.wait_for_selector(".acts")
+        g0 = lib["groups"][0]
+        expect = [GAME_LABEL[x] for x in lib["profile"]["games"] if x in BUILT_GAMES and
+                  (x != "picture" or sum(1 for c in g0["chars"] if c["pic"]) >= 4)]
+        check(act_labels(p) == expect, f"{lib['id']} activities {act_labels(p)} != {expect}")
+        p.goto(BASE)
+        p.wait_for_selector(".home-actions")
+    # Library defaults can still be changed by hand afterwards.
+    open_settings(p)
+    p.select_option(".panel label:has-text('每次学习时间') select", "30")
+    p.click(".panel label.inline input >> nth=0")
+    p.click(".panel .btn.leaf")
+    open_settings(p)
+    check(p.input_value(".panel label:has-text('每次学习时间') select") == "30", "manual session length lost")
+    check(p.is_checked(".panel label.inline input >> nth=0") is False, "manual pinyin toggle lost")  # 6-7 default is on
+    pg.close()
+
+
+def t_unlock(browser):
+    """Unlocking is counted per library: passing 3-4 group 1 does not open 4-5 group 2."""
+    data = charsets()
+    g1 = data["libraries"][0]["groups"][0]["chars"]
+    st = json.loads(json.dumps(V1_STATE))
+    st["chars"] = {x["c"]: {"l": 1, "d": 9e15, "n": True, "r": 1, "w": 0} for x in g1[:8]}
+    pg = Page(browser, WIDE, state=st)
+    p = pg.open()
+    p.click(".home-actions .btn.leaf")
+    p.wait_for_selector(".gcard")
+    locked = p.eval_on_selector_all(".gcard", "(cs) => cs.map((c) => c.classList.contains('locked'))")
+    check(locked[:3] == [False, False, True], f"3-4 unlock wrong: {locked[:3]}")
+    p.goto(BASE)
+    p.wait_for_selector(".home-actions")
+    pick_library(p, "age-4-5")
+    p.click(".home-actions .btn.leaf")
+    p.wait_for_selector(".gcard")
+    locked = p.eval_on_selector_all(".gcard", "(cs) => cs.map((c) => c.classList.contains('locked'))")
+    check(locked[:2] == [False, True], f"4-5 unlock wrong: {locked[:2]}")
+    pg.close()
+
+
 CHECKS = {
     "load": t_load,
     "migration": t_migration,
     "offline": t_offline,
     "games34": t_games_3_4,
+    "libraries": t_libraries,
+    "unlock": t_unlock,
 }
 
 

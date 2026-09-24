@@ -124,6 +124,7 @@ button:focus-visible { outline: 4px solid var(--sky); outline-offset: 3px; }
 .home-actions .btn .emoji { font-size: 52px; }
 .home-actions .badge { font-size: 16px; opacity: .9; }
 .home-foot { display: flex; justify-content: flex-end; width: min(100%, 820px); }
+.lib-tag { margin: -8px 0 0; font-size: 18px; background: var(--paper); color: var(--ink-soft); padding: 4px 14px; border-radius: 999px; box-shadow: 0 3px 0 var(--ghost); }
 .parent { position: relative; overflow: hidden; }
 .parent::after { content: ""; position: absolute; left: 0; bottom: 0; height: 4px; width: 0; background: var(--sun); }
 .parent.holding::after { width: 100%; transition: width 2s linear; }
@@ -267,6 +268,12 @@ button:focus-visible { outline: 4px solid var(--sky); outline-offset: 3px; }
 .panel input[type=range] { width: 100%; accent-color: var(--leaf); height: 30px; }
 .panel input[type=checkbox] { width: 26px; height: 26px; accent-color: var(--leaf); }
 .panel select { font: inherit; font-size: 16px; padding: 8px; border-radius: 10px; border: 2px solid var(--ghost); background: var(--bg-2); color: var(--ink); max-width: 100%; }
+.libs { display: grid; gap: 10px; }
+.lib-card { text-align: left; border: 3px solid var(--ghost); background: var(--bg-2); border-radius: 18px; padding: 10px 14px; display: grid; grid-template-columns: 1fr auto; gap: 2px 10px; align-items: baseline; }
+.lib-card b { font-weight: 400; font-size: 22px; }
+.lib-card .lib-n { font-size: 16px; color: var(--ink-soft); white-space: nowrap; }
+.lib-card .lib-desc { grid-column: 1 / -1; font-size: 15px; color: var(--ink-soft); line-height: 1.4; }
+.lib-card[aria-checked="true"] { border-color: var(--leaf); background: var(--lv-a); }
 .panel .note { font-size: 16px; color: var(--ink-soft); margin: 0; line-height: 1.5; }
 .panel .row { display: flex; gap: 12px; flex-wrap: wrap; }
 .toast { position: fixed; left: 50%; bottom: calc(24px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); background: var(--ink); color: var(--bg); padding: 12px 22px; border-radius: 999px; font-size: 20px; z-index: 30; animation: sprout .3s; max-width: 90vw; text-align: center; }
@@ -368,6 +375,10 @@ button:focus-visible { outline: 4px solid var(--sky); outline-offset: 3px; }
     "syncLocal": "学习进度保存在这台设备的浏览器里。",
     "noVoice": "没有找到中文语音。建议用 Edge 浏览器打开；或在 Windows 设置 → 时间和语言 → 语言和区域 里添加中文（简体）并安装语音包。",
     "close": "关闭",
+    "library": "字库",
+    "libraryProgress": "已认识 {n} / {m}",
+    "showPinyin": "显示拼音",
+    "currentLib": "{name} · {n}/{m}",
     "loadFail": "字库没有加载成功，请连上网络再试一次",
     "reload": "再试一次"
   },
@@ -539,8 +550,13 @@ button:focus-visible { outline: 4px solid var(--sky); outline-offset: 3px; }
     if (r.l === 4) return 'lv-c';
     return 'lv-d';
   }
-  const groupPassed = (gi) => GROUPS[gi].chars.filter((x) => peek(x.c).l >= 1).length;
-  const unlocked = (gi) => state.settings.unlockAll || gi === 0 || groupPassed(gi - 1) >= 8;
+  // Unlocking is per library: group 0 is always open; group k needs 8 characters of group k-1 at level >= 1.
+  function unlocked(lib, gi) {
+    if (state.settings.unlockAll || gi === 0) return true;
+    return lib.groups[gi - 1].chars.filter((x) => peek(x.c).l >= 1).length >= 8;
+  }
+  const libSeen = (lib) => lib.groups.reduce((n, g) => n + g.chars.filter((x) => peek(x.c).n).length, 0);
+  const libSize = (lib) => lib.groups.reduce((n, g) => n + g.chars.length, 0);
   const dueList = () => { const now = Date.now(); return ALL.filter((c) => peek(c).n && peek(c).d <= now); };
 
   // ---------- speech ----------
@@ -740,6 +756,7 @@ button:focus-visible { outline: 4px solid var(--sky); outline-offset: 3px; }
 
   // ---------- home ----------
   function renderHome() {
+    const lib = currentLib();
     const plants = DATA.garden;
     const count = Math.floor(state.stars / 10);
     const start = Math.max(0, count - 36);
@@ -766,6 +783,7 @@ button:focus-visible { outline: 4px solid var(--sky); outline-offset: 3px; }
         h('div', { class: 'home' },
           h('div', { class: 'title-tiles', role: 'heading', 'aria-level': '1', 'aria-label': UI.appTitle },
             [...UI.appTitle].map((ch) => tzg(ch))),
+          h('p', { class: 'lib-tag' }, fmt(UI.currentLib, { name: lib.name, n: libSeen(lib), m: libSize(lib) })),
           garden,
           actions,
           h('div', { class: 'home-foot' }, holdButton(UI.parent, openSettings)))));
@@ -788,39 +806,41 @@ button:focus-visible { outline: 4px solid var(--sky); outline-offset: 3px; }
 
   // ---------- map ----------
   function renderMap() {
-    const screen = h('div', { class: 'screen' });
-    let lastStage = -1, grid = null;
-    GROUPS.forEach((g, gi) => {
-      if (g.lib !== lastStage) {
-        lastStage = g.lib;
-        grid = h('div', { class: 'groups' });
-        screen.append(h('h2', { class: 'stage-h' }, LIBS[g.lib].name), grid);
-      }
-      const open = unlocked(gi);
+    const lib = currentLib(), li = LIBS.indexOf(lib);
+    const grid = h('div', { class: 'groups' });
+    lib.groups.forEach((g, gi) => {
+      const open = unlocked(lib, gi);
       grid.append(h('button', {
         class: 'gcard' + (open ? '' : ' locked'),
-        onclick: () => { if (open) show(renderGroup, gi); else { sfx.bad(); toast(UI.locked); } },
+        onclick: () => { if (open) show(renderGroup, li, gi); else { sfx.bad(); toast(UI.locked); } },
       },
       h('div', { class: 'gcard-head' },
         h('span', { class: 'num' }, fmt(UI.levelN, { n: gi + 1 })), emo(g.icon), h('span', {}, g.name),
         open ? null : h('span', { class: 'lock' }, '🔒')),
       h('div', { class: 'minis' }, g.chars.map((x) => h('span', { class: 'mini ' + lvClass(x.c) }, x.c)))));
     });
-    app.append(topbar(UI.map, goHome), screen);
+    app.append(topbar(UI.map, goHome), h('div', { class: 'screen' }, h('h2', { class: 'stage-h' }, lib.name), grid));
   }
 
   // ---------- group menu ----------
-  function renderGroup(gi) {
-    const g = GROUPS[gi];
+  const hasPic = (c) => !!CHAR.get(c).pic;
+  // Picture quiz needs at least 4 characters with pictures in the group.
+  const pictureOk = (chars) => chars.filter(hasPic).length >= 4;
+
+  function renderGroup(li, gi) {
+    const lib = LIBS[li], g = lib.groups[gi];
     const chars = g.chars.map((x) => x.c);
-    const back = () => show(renderGroup, gi);
-    const acts = [
-      ['📖', UI.learn, 'sky', () => show(renderLearn, chars, { title: g.name, onBack: back, onDone: () => show(renderLearnDone, gi) })],
-      ['👂', UI.listen, 'sun', () => show(renderQuiz, { items: shuffle(chars), mode: 'listen', pool: chars, title: UI.listen, onBack: back })],
-      ['🖼️', UI.picture, 'leaf', () => show(renderQuiz, { items: shuffle(chars), mode: 'picture', pool: chars, title: UI.picture, onBack: back })],
-      ['🃏', UI.memory, 'berry', () => show(renderMemory, gi)],
-      ['🌷', UI.flowers, 'sky', () => show(renderFlowers, gi)],
-    ];
+    const back = () => show(renderGroup, li, gi);
+    const games = {
+      learn: ['📖', UI.learn, 'sky', () => show(renderLearn, chars, { title: g.name, onBack: back, onDone: () => show(renderLearnDone, li, gi) })],
+      listen: ['👂', UI.listen, 'sun', () => show(renderQuiz, { items: shuffle(chars), mode: 'listen', pool: chars, title: UI.listen, onBack: back })],
+      picture: ['🖼️', UI.picture, 'leaf', () => show(renderQuiz, { items: shuffle(chars), mode: 'picture', pool: chars, title: UI.picture, onBack: back })],
+      memory: ['🃏', UI.memory, 'berry', () => show(renderMemory, li, gi)],
+      flowers: ['🌷', UI.flowers, 'sky', () => show(renderFlowers, li, gi)],
+    };
+    const acts = lib.profile.games
+      .filter((id) => games[id] && (id !== 'picture' || pictureOk(chars)))
+      .map((id) => games[id]);
     app.append(
       topbar(fmt(UI.levelN, { n: gi + 1 }) + ' ' + g.name, () => show(renderMap)),
       h('div', { class: 'screen' },
@@ -834,16 +854,16 @@ button:focus-visible { outline: 4px solid var(--sky); outline-offset: 3px; }
           h('button', { class: 'btn ' + color, onclick: fn }, emo(icon), h('span', {}, label))))));
   }
 
-  function renderLearnDone(gi) {
-    const g = GROUPS[gi];
+  function renderLearnDone(li, gi) {
+    const g = LIBS[li].groups[gi];
     const chars = g.chars.map((x) => x.c);
-    const back = () => show(renderGroup, gi);
+    const back = () => show(renderGroup, li, gi);
     app.append(topbar(g.name, back), h('div', { class: 'screen' }, h('div', { class: 'end' },
       emo('🎉', 'hero'), h('h2', {}, UI.learnDone), h('p', {}, UI.learnDoneSub),
       h('div', { class: 'row' },
         h('button', { class: 'btn sun', onclick: () => show(renderQuiz, { items: shuffle(chars), mode: 'listen', pool: chars, title: UI.listen, onBack: back }) }, emo('👂'), UI.listen),
-        h('button', { class: 'btn berry', onclick: () => show(renderMemory, gi) }, emo('🃏'), UI.memory),
-        h('button', { class: 'btn sky', onclick: () => show(renderFlowers, gi) }, emo('🌷'), UI.flowers)))));
+        h('button', { class: 'btn berry', onclick: () => show(renderMemory, li, gi) }, emo('🃏'), UI.memory),
+        h('button', { class: 'btn sky', onclick: () => show(renderFlowers, li, gi) }, emo('🌷'), UI.flowers)))));
     sfx.good();
   }
 
@@ -1023,9 +1043,10 @@ button:focus-visible { outline: 4px solid var(--sky); outline-offset: 3px; }
     const fresh = [];
     if (due.length < 8) {
       const need = Math.min(3, 10 - due.length);
-      for (let gi = 0; gi < GROUPS.length && fresh.length < need; gi++) {
-        if (!unlocked(gi)) break;
-        for (const x of GROUPS[gi].chars) {
+      const lib = currentLib();
+      for (let gi = 0; gi < lib.groups.length && fresh.length < need; gi++) {
+        if (!unlocked(lib, gi)) break;
+        for (const x of lib.groups[gi].chars) {
           if (fresh.length >= need) break;
           if (!peek(x.c).n) fresh.push(x.c);
         }
@@ -1042,7 +1063,7 @@ button:focus-visible { outline: 4px solid var(--sky); outline-offset: 3px; }
     }
     const known = ALL.filter((c) => peek(c).n);
     let pool = [...new Set([...known, ...fresh])];
-    if (pool.length < 6) pool = GROUPS.filter((_, gi) => unlocked(gi)).flatMap((g) => g.chars.map((x) => x.c));
+    if (pool.length < 6) pool = currentLib().groups.filter((_, gi) => unlocked(currentLib(), gi)).flatMap((g) => g.chars.map((x) => x.c));
     const items = shuffle([...due, ...fresh]).concat(shuffle(fresh));
     const runQuiz = () => show(renderQuiz, { items, mode: 'mixed', pool, title: UI.daily, onBack: goHome, onAgain: startDaily });
     if (fresh.length) show(renderLearn, fresh, { title: UI.newChars, onBack: goHome, onDone: runQuiz });
@@ -1052,9 +1073,9 @@ button:focus-visible { outline: 4px solid var(--sky); outline-offset: 3px; }
   // ---------- memory match: look first, then find the pairs ----------
   // Round 1 uses 4 pairs, round 2 the remaining 6 characters of the group.
   // Every round opens with a timed look at all cards, so matching is about memory, not luck.
-  function renderMemory(gi, opts = {}) {
-    const g = GROUPS[gi];
-    const back = () => show(renderGroup, gi);
+  function renderMemory(li, gi, opts = {}) {
+    const g = LIBS[li].groups[gi];
+    const back = () => show(renderGroup, li, gi);
     const SIZES = [4, 6];
     const PEEK_MS = [4000, 6000];
     const round = opts.round || 0;
@@ -1138,8 +1159,8 @@ button:focus-visible { outline: 4px solid var(--sky); outline-offset: 3px; }
           if (matched === chosen.length) {
             const lastRound = round >= SIZES.length - 1;
             later(() => {
-              if (lastRound) show(renderEnd, { earned, onAgain: () => show(renderMemory, gi), onBack: back });
-              else show(renderMemory, gi, { round: round + 1, order, earned });
+              if (lastRound) show(renderEnd, { earned, onAgain: () => show(renderMemory, li, gi), onBack: back });
+              else show(renderMemory, li, gi, { round: round + 1, order, earned });
             }, 1700);
           }
         }, 450);
@@ -1154,9 +1175,9 @@ button:focus-visible { outline: 4px solid var(--sky); outline-offset: 3px; }
   }
 
   // ---------- flower garden: tap the right sprout to make it bloom ----------
-  function renderFlowers(gi) {
-    const g = GROUPS[gi];
-    const back = () => show(renderGroup, gi);
+  function renderFlowers(li, gi) {
+    const g = LIBS[li].groups[gi];
+    const back = () => show(renderGroup, li, gi);
     const chosen = shuffle(g.chars.map((x) => x.c)).slice(0, 8);
     const order = shuffle(chosen);
     let idx = 0, missed = false, wrongs = 0, busy = false, earned = 0;
@@ -1207,7 +1228,7 @@ button:focus-visible { outline: 4px solid var(--sky); outline-offset: 3px; }
           if (!missed) { grade(p.c, true); addStar(p.el); earned++; }
           idx++; renderScore();
           if (idx >= order.length) {
-            later(() => show(renderEnd, { earned, onAgain: () => show(renderFlowers, gi), onBack: back }), 1800);
+            later(() => show(renderEnd, { earned, onAgain: () => show(renderFlowers, li, gi), onBack: back }), 1800);
           } else {
             later(() => { missed = false; wrongs = 0; busy = false; speak(promptText()); }, 1700);
           }
@@ -1253,9 +1274,9 @@ button:focus-visible { outline: 4px solid var(--sky); outline-offset: 3px; }
       h('div', { class: 'legend' },
         [['lv-a', UI.legendA], ['lv-b', UI.legendB], ['lv-c', UI.legendC], ['lv-d', UI.legendD]]
           .map(([cls, label]) => h('span', {}, h('i', { class: cls }), label))));
-    GROUPS.forEach((g, gi) => {
+    GROUPS.forEach((g) => {
       screen.append(h('div', { class: 'box-group' },
-        h('h3', {}, fmt(UI.levelN, { n: gi + 1 }) + ' ' + g.name),
+        h('h3', {}, fmt(UI.levelN, { n: g.gi + 1 }) + ' ' + g.name),
         h('div', { class: 'box-row' }, g.chars.map((x) => {
           const cls = lvClass(x.c);
           const t = tzg(x.c, cls === 'lv-none' ? 'unseen' : cls);
@@ -1271,6 +1292,25 @@ button:focus-visible { outline: 4px solid var(--sky); outline-offset: 3px; }
 
   // ---------- parent settings ----------
   function openSettings() {
+    // Library choice: applies that library's default session length and pinyin setting; both stay editable below.
+    const libCards = h('div', { class: 'libs', role: 'radiogroup', 'aria-label': UI.library }, LIBS.map((lib) => {
+      const b = h('button', { class: 'lib-card', role: 'radio', 'aria-checked': String(lib === currentLib()), 'data-lib': lib.id },
+        h('b', {}, lib.name),
+        h('span', { class: 'lib-n' }, fmt(UI.libraryProgress, { n: libSeen(lib), m: libSize(lib) })),
+        h('span', { class: 'lib-desc' }, lib.desc));
+      b.addEventListener('click', () => {
+        state.settings.libraryId = lib.id;
+        state.settings.sessionMin = lib.profile.sessionMin;
+        state.settings.showPinyin = lib.profile.showPinyin;
+        save();
+        overlay.remove();
+        show(renderHome);
+      });
+      return b;
+    }));
+    const pinyinBox = h('input', { type: 'checkbox', checked: state.settings.showPinyin });
+    pinyinBox.addEventListener('change', () => { state.settings.showPinyin = pinyinBox.checked; save(); });
+
     const rateOut = h('span', {}, state.settings.rate.toFixed(2));
     const rate = h('input', { type: 'range', min: '0.5', max: '1.2', step: '0.05', value: String(state.settings.rate) });
     rate.addEventListener('input', () => { state.settings.rate = parseFloat(rate.value); rateOut.textContent = state.settings.rate.toFixed(2); });
@@ -1303,6 +1343,8 @@ button:focus-visible { outline: 4px solid var(--sky); outline-offset: 3px; }
     const overlay = h('div', { class: 'overlay', onclick: (e) => { if (e.target === overlay) close(); } },
       h('div', { class: 'panel', role: 'dialog', 'aria-modal': 'true' },
         h('h2', {}, UI.settings),
+        h('div', { class: 'libs-wrap' }, h('p', { class: 'note' }, UI.library), libCards),
+        h('label', { class: 'inline' }, pinyinBox, UI.showPinyin),
         h('label', {}, h('span', {}, UI.rate, ' ', rateOut), rate),
         zhVoices.length
           ? h('label', {}, UI.voice, voiceSel)
