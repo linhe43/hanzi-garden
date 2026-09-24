@@ -329,6 +329,63 @@ def t_daily(browser):
     pg.close()
 
 
+def t_nopic(browser):
+    """Characters without pictures: big word on the learn card, listening cards in memory, no picture quiz."""
+    data = charsets()
+    lib56 = data["libraries"][2]
+    g0 = [x["c"] for x in lib56["groups"][0]["chars"]]
+    pg = Page(browser, NARROW)
+    p = pg.open()
+    pick_library(p, "age-5-6")
+    open_group(p, 0)
+    check("看图找字" not in act_labels(p), "picture quiz shown for a group without pictures")
+    open_act(p, "学新字")
+    check(p.locator(".learn-word").count() == 1 and p.locator(".learn-pic").count() == 0, "learn card should show the big word")
+    check(p.locator(".learn-info .word").count() == 1, "word shown twice on the learn card")
+    pg.shot("learn-56")
+    back(p)
+    open_act(p, "翻牌配对")
+    says = p.eval_on_selector_all(".mcard .say", "(ss) => ss.map((s) => s.textContent)")
+    hans = p.eval_on_selector_all(".mcard .front .han", "(ss) => ss.map((s) => s.textContent)")
+    check(len(says) == 4 and len(hans) == 4, f"round 1 should have 4 listening + 4 character cards: {says} {hans}")
+    for c in hans:
+        check(any("○" in s and c not in s.replace("🔊", "") for s in says), f"listening card leaks the character {c}: {says}")
+    pg.shot("memory-56")
+    back(p)
+    open_act(p, "听音找字")
+    opts = p.eval_on_selector_all(".opt", "(os) => os.map((o) => o.getAttribute('aria-label'))")
+    check(len(set(opts)) == 4, f"listen quiz needs 4 options: {opts}")
+    pg.close()
+
+    # 4-5 group with 5 pictures: picture quiz only asks the pictured characters and only offers pictured options.
+    lib45 = data["libraries"][1]
+    gi = next(i for i, g in enumerate(lib45["groups"]) if sum(1 for x in g["chars"] if x["pic"]) == 5)
+    pics = {x["c"] for g in lib45["groups"] for x in g["chars"] if x["pic"]} | {x["c"] for x in data["libraries"][0]["groups"][0]["chars"]}
+    pg = Page(browser, WIDE, state=seeded("age-4-5", {}))
+    p = pg.open()
+    open_settings(p)
+    p.click(".panel label.inline >> nth=1")  # unlock all groups
+    p.click(".panel .btn.leaf")
+    open_group(p, gi)
+    open_act(p, "看图找字")
+    rounds = 0
+    while p.locator(".prompt .big-pic").count():
+        rounds += 1
+        check(p.inner_text(".prompt .big-pic").strip() != "", "empty picture prompt")
+        opts = p.eval_on_selector_all(".opt", "(os) => os.map((o) => o.getAttribute('aria-label'))")
+        check(all(o in pics for o in opts), f"option without a picture: {opts}")
+        # Answer by trying each option until the round advances.
+        for i in range(4):
+            if p.locator(".opt.right").count():
+                break
+            b = p.locator(".opt").nth(i)
+            if not b.is_disabled():
+                b.click()
+        time.sleep(1.9)
+    check(rounds >= 5, f"picture quiz asked {rounds} rounds")
+    pg.close()
+
+
 CHECKS = {
     "load": t_load,
     "migration": t_migration,
@@ -337,6 +394,7 @@ CHECKS = {
     "libraries": t_libraries,
     "unlock": t_unlock,
     "daily": t_daily,
+    "nopic": t_nopic,
 }
 
 

@@ -163,6 +163,7 @@ button:focus-visible { outline: 4px solid var(--sky); outline-offset: 3px; }
 .pinyin { font-family: var(--f-py); font-size: clamp(32px, 5vw, 48px); letter-spacing: .02em; }
 .word { font-family: var(--f-han); font-size: clamp(32px, 5vw, 46px); }
 .word .hl { color: var(--berry); }
+.learn-word { font-size: clamp(64px, 12vw, 120px); line-height: 1.1; }
 .learn-box { position: relative; width: min(100%, 52vh, 420px); justify-self: center; }
 .learn-box .tzg { width: 100%; }
 .learn-box canvas { position: absolute; inset: 0; width: 100%; height: 100%; z-index: 2; touch-action: none; pointer-events: none; border-radius: 8px; }
@@ -212,6 +213,9 @@ button:focus-visible { outline: 4px solid var(--sky); outline-offset: 3px; }
 .mcard .front .emoji { font-size: 48cqw; text-align: center; padding: 6cqw; word-break: break-all; }
 .mcard .front .emoji.many { font-size: 20cqw; }
 .mcard .front .emoji.few { font-size: 30cqw; }
+.mcard .front .say { display: flex; flex-direction: column; align-items: center; gap: 2cqw; font-family: var(--f-han); font-size: 26cqw; line-height: 1; }
+.mcard .front .say.long { font-size: 19cqw; }
+.mcard .front .say .emoji { font-size: 20cqw; padding: 0; }
 .mcard.matched .front { background: var(--lv-b); border-color: var(--leaf); }
 .mcard.matched { animation: hop .5s; }
 
@@ -429,7 +433,9 @@ button:focus-visible { outline: 4px solid var(--sky); outline-offset: 3px; }
   const toneless = (py) => py.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
   const SEG = typeof Intl !== 'undefined' && Intl.Segmenter ? new Intl.Segmenter('en', { granularity: 'grapheme' }) : null;
   const picCount = (pic) => (SEG ? [...SEG.segment(pic)].length : [...pic.replace(/[\uFE0F\u200D]/g, '')].length);
-  const isMany = (pic) => picCount(pic) >= 2;
+  const isMany = (pic) => !!pic && picCount(pic) >= 2;
+  // Word with every occurrence of the character replaced by a mark (爸爸 -> ○○), so the answer is never left showing.
+  const blankWord = (w, c, mark) => w.split(c).join(mark);
   const memPicClass = (pic) => { const n = picCount(pic); return n > 4 ? 'many' : (n > 1 ? 'few' : ''); };
 
   function h(tag, props, ...kids) {
@@ -846,7 +852,7 @@ button:focus-visible { outline: 4px solid var(--sky); outline-offset: 3px; }
     const games = {
       learn: ['📖', UI.learn, 'sky', () => show(renderLearn, chars, { title: g.name, onBack: back, onDone: () => show(renderLearnDone, li, gi) })],
       listen: ['👂', UI.listen, 'sun', () => show(renderQuiz, { items: shuffle(chars), mode: 'listen', pool: chars, title: UI.listen, onBack: back })],
-      picture: ['🖼️', UI.picture, 'leaf', () => show(renderQuiz, { items: shuffle(chars), mode: 'picture', pool: chars, title: UI.picture, onBack: back })],
+      picture: ['🖼️', UI.picture, 'leaf', () => show(renderQuiz, { items: shuffle(chars.filter(hasPic)), mode: 'picture', pool: chars, title: UI.picture, onBack: back })],
       memory: ['🃏', UI.memory, 'berry', () => show(renderMemory, li, gi)],
       flowers: ['🌷', UI.flowers, 'sky', () => show(renderFlowers, li, gi)],
     };
@@ -913,8 +919,8 @@ button:focus-visible { outline: 4px solid var(--sky); outline-offset: 3px; }
     return { clear: () => ctx.clearRect(0, 0, w, hgt), dispose: () => ro.disconnect() };
   }
 
-  function wordNode(word, c) {
-    return h('div', { class: 'word' }, [...word].map((ch) => (ch === c ? h('span', { class: 'hl' }, ch) : ch)));
+  function wordNode(word, c, cls = '') {
+    return h('div', { class: ('word ' + cls).trim() }, [...word].map((ch) => (ch === c ? h('span', { class: 'hl' }, ch) : ch)));
   }
 
   function renderLearn(list, opts) {
@@ -942,9 +948,9 @@ button:focus-visible { outline: 4px solid var(--sky); outline-offset: 3px; }
       body.replaceChildren(
         h('div', { class: 'learn-card' },
           h('div', { class: 'learn-info' },
-            emo(x.pic, 'learn-pic' + (isMany(x.pic) ? ' many' : '')),
+            x.pic ? emo(x.pic, 'learn-pic' + (isMany(x.pic) ? ' many' : '')) : null,
             h('div', { class: 'pinyin' }, x.py),
-            wordNode(x.w, x.c),
+            x.pic ? wordNode(x.w, x.c) : wordNode(x.w, x.c, 'learn-word'),
             h('button', { class: 'btn sun', onclick: () => sayChar(x.c) }, emo('🔊'), UI.hear)),
           h('div', {},
             box,
@@ -961,16 +967,30 @@ button:focus-visible { outline: 4px solid var(--sky); outline-offset: 3px; }
   }
 
   // ---------- multiple-choice quiz (listen / picture / mixed) ----------
-  function distractors(c, pool, n) {
+  // Distractors never share the answer's toneless reading. With a picture, they must not share that picture;
+  // in picture mode they must have a picture of their own. Filled from the pool, then the current library, then all.
+  function distractors(c, pool, n, mode) {
     const x = CHAR.get(c), base = toneless(x.py);
-    const ok = (o) => o !== c && toneless(CHAR.get(o).py) !== base && CHAR.get(o).pic !== x.pic;
+    const ok = (o) => {
+      const y = CHAR.get(o);
+      if (o === c || toneless(y.py) === base) return false;
+      if (x.pic && y.pic === x.pic) return false;
+      if (mode === 'picture' && !y.pic) return false;
+      return true;
+    };
+    const libChars = currentLib().groups.flatMap((g) => g.chars.map((y) => y.c));
     let cand = shuffle(pool.filter(ok));
-    if (cand.length < n) cand = cand.concat(shuffle(ALL.filter((o) => ok(o) && !cand.includes(o))));
+    for (const more of [libChars, ALL]) {
+      if (cand.length >= n) break;
+      cand = cand.concat(shuffle(more.filter((o) => ok(o) && !cand.includes(o))));
+    }
     return cand.slice(0, n);
   }
+  // Mixed rounds: characters with a picture use listen or picture; the others use listen only.
+  const mixedMode = (c) => (hasPic(c) ? pick(['listen', 'picture']) : 'listen');
 
   function renderQuiz(cfg) {
-    const queue = cfg.items.map((c) => ({ c, m: cfg.mode === 'mixed' ? pick(['listen', 'picture']) : cfg.mode, retried: false }));
+    const queue = cfg.items.map((c) => ({ c, m: cfg.mode === 'mixed' ? mixedMode(c) : cfg.mode, retried: false }));
     let done = 0, earned = 0;
     const timers = [];
     const later = (fn, ms) => timers.push(setTimeout(fn, ms));
@@ -990,7 +1010,7 @@ button:focus-visible { outline: 4px solid var(--sky); outline-offset: 3px; }
     }
     function round(it) {
       const x = CHAR.get(it.c);
-      const opts = shuffle([it.c, ...distractors(it.c, cfg.pool, 3)]);
+      const opts = shuffle([it.c, ...distractors(it.c, cfg.pool, 3, it.m)]);
       let wrong = 0, locked = false;
       const promptText = fmt(UI.promptListen, { c: it.c, w: x.w });
       if (it.m === 'listen') {
@@ -1113,7 +1133,8 @@ button:focus-visible { outline: 4px solid var(--sky); outline-offset: 3px; }
     const startAt = SIZES.slice(0, round).reduce((a, b) => a + b, 0);
     let chosen = order.slice(startAt, startAt + SIZES[round]);
     if (chosen.length < 2) chosen = order.slice(0, SIZES[round]);
-    const cards = shuffle(chosen.flatMap((c) => [{ c, kind: 'han' }, { c, kind: 'pic' }]));
+    // The partner of a character card is its picture, or a listening card (🔊 + word with the character blanked).
+    const cards = shuffle(chosen.flatMap((c) => [{ c, kind: 'han' }, { c, kind: hasPic(c) ? 'pic' : 'say' }]));
     let open = [], matched = 0, busy = true, peeks = 2;
     const timers = [];
     const later = (fn, ms) => timers.push(setTimeout(fn, ms));
@@ -1122,7 +1143,9 @@ button:focus-visible { outline: 4px solid var(--sky); outline-offset: 3px; }
     const grid = h('div', { class: 'mem-grid' });
     cards.forEach((card) => {
       const x = CHAR.get(card.c);
-      const front = card.kind === 'han' ? h('span', { class: 'han' }, x.c) : emo(x.pic, memPicClass(x.pic));
+      const front = card.kind === 'han' ? h('span', { class: 'han' }, x.c)
+        : card.kind === 'pic' ? emo(x.pic, memPicClass(x.pic))
+          : h('span', { class: 'say' + (x.w.length > 2 ? ' long' : '') }, emo('🔊'), blankWord(x.w, x.c, '○'));
       const el = h('button', { class: 'mcard flipped' },
         h('div', { class: 'inner' }, h('div', { class: 'face back' }, '?'), h('div', { class: 'face front' }, front)));
       card.el = el;
@@ -1173,6 +1196,7 @@ button:focus-visible { outline: 4px solid var(--sky); outline-offset: 3px; }
       sfx.flip();
       el.classList.add('flipped');
       if (card.kind === 'han') speak(x.c);
+      else if (card.kind === 'say') speak(x.w);
       open.push(card);
       if (open.length < 2) return;
       busy = true;
