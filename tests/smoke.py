@@ -176,10 +176,10 @@ def t_offline(browser):
         p.reload()
         p.wait_for_selector(".home-actions")
         time.sleep(0.1)
-    check(p.evaluate("caches.keys()") == ["hanzi-garden-v4"], f"cache names: {p.evaluate('caches.keys()')}")
-    check(p.evaluate("caches.open('hanzi-garden-v4').then((c) => c.match('data/charsets.json')).then((r) => !!r)"),
+    check(p.evaluate("caches.keys()") == ["hanzi-garden-v5"], f"cache names: {p.evaluate('caches.keys()')}")
+    check(p.evaluate("caches.open('hanzi-garden-v5').then((c) => c.match('data/charsets.json')).then((r) => !!r)"),
           "charsets.json not in the service worker cache")
-    check(p.evaluate("caches.open('hanzi-garden-v4').then((c) => c.match('fonts/kai.woff2')).then((r) => !!r)"),
+    check(p.evaluate("caches.open('hanzi-garden-v5').then((c) => c.match('fonts/kai.woff2')).then((r) => !!r)"),
           "kai.woff2 not in the service worker cache")
     pg.ctx.set_offline(True)
     p.reload()
@@ -658,6 +658,111 @@ def t_switch(browser):
     pg.close()
 
 
+KIDS_KEY = "hanzi-garden-kids-v1"
+with open(os.path.join(ROOT, "index.html"), encoding="utf-8") as f:
+    _h = f.read()
+_s = _h.index('id="content">') + len('id="content">')
+AVATARS = json.loads(_h[_s:_h.index("</script>", _s)])["avatars"]
+
+
+def ls(p, key):
+    raw = p.evaluate(f"localStorage.getItem({json.dumps(key)})")
+    return json.loads(raw) if raw else None
+
+
+def kid_buttons(p):
+    return p.eval_on_selector_all(".kid-btn[data-kid]", "(bs) => bs.map((b) => [b.dataset.kid, b.getAttribute('aria-pressed')])")
+
+
+def t_kids(browser):
+    """Several children: existing progress becomes child 1 untouched; each child has own progress,
+    library, stars and session timer; speech rate is shared; removing a child deletes only theirs."""
+    pg = Page(browser, NARROW, state=V1_STATE)
+    p = pg.open()
+    check(p.locator(".kid-badge").count() == 0, "avatar shown with a single child")
+    reg = ls(p, KIDS_KEY)
+    check(reg["current"] == "p1" and reg["list"] == [{"id": "p1", "avatar": AVATARS[0]}], f"registry: {reg}")
+    before = p.evaluate(f"localStorage.getItem({json.dumps(LS_KEY)})")
+
+    # Add a second child, pick 5-6 for them and change the shared speech rate.
+    open_settings(p)
+    p.click(".kid-btn.add")
+    p.wait_for_selector(".panel")
+    check(kid_buttons(p) == [["p1", "false"], ["p2", "true"]], f"kid buttons: {kid_buttons(p)}")
+    p.click('.lib-card[data-lib="age-5-6"]')
+    p.eval_on_selector(".panel input[type=range]",
+                       "(r) => { r.value = '1.1'; r.dispatchEvent(new Event('input')); r.dispatchEvent(new Event('change')); }")
+    pg.shot("settings-kids")
+    p.click(f".panel .btn.leaf:has-text('{UI['confirm']}')")
+    p.wait_for_selector(".home-actions")
+    check(p.inner_text("#starCount").strip().endswith("0"), "new child should start with 0 stars")
+    check(LIBS[2]["name"] in p.inner_text(".lib-tag"), "new child's library not applied")
+    check(p.inner_text(".kid-badge") == AVATARS[1], "second child's avatar not on home")
+    pg.shot("home-kid2")
+    check(p.evaluate(f"localStorage.getItem({json.dumps(LS_KEY)})") == before, "first child's progress was rewritten")
+    check(ls(p, LS_KEY + "-p2")["settings"]["libraryId"] == "age-5-6", "second child's progress not stored separately")
+
+    # Child 1 has used up their time today; child 2 has not. Switching back shows child 1's rest screen.
+    p.evaluate("localStorage.setItem('hanzi-garden-session-v1', JSON.stringify({used: 16 * 60000, last: Date.now()}))")
+    open_settings(p)
+    p.click('.kid-btn[data-kid="p1"]')
+    p.wait_for_selector('.kid-btn[data-kid="p1"][aria-pressed="true"]')
+    check(p.input_value(".panel input[type=range]") == "1.1", "speech rate is not shared between children")
+    check(p.get_attribute('.lib-card[data-lib="age-3-4"]', "aria-checked") == "true", "first child's library lost")
+    p.click(f".panel .btn.leaf:has-text('{UI['confirm']}')")
+    p.wait_for_selector(".end .parent")
+    check(p.inner_text("#starCount").strip().endswith("12"), "first child's stars lost")
+    p.focus(".end .parent")
+    p.keyboard.press("Shift+Enter")
+    p.wait_for_selector(".home-actions")
+
+    # Remove child 2 (needs a second press): only their data goes.
+    open_settings(p)
+    p.click('.kid-btn[data-kid="p2"]')
+    p.wait_for_selector('.kid-btn[data-kid="p2"][aria-pressed="true"]')
+    btn = p.locator(f".panel .btn:has-text('{UI['removeKid']}')")
+    btn.click()
+    p.locator(f".panel .btn:has-text('{UI['removeKidConfirm']}')").click()
+    p.wait_for_selector(".home-actions")
+    check(ls(p, KIDS_KEY)["list"] == [{"id": "p1", "avatar": AVATARS[0]}], "child not removed from the list")
+    check(ls(p, LS_KEY + "-p2") is None, "removed child's progress still stored")
+    check(ls(p, LS_KEY)["stars"] == 12, "first child's progress affected by removal")
+    check(p.locator(".kid-badge").count() == 0, "avatar still shown with one child left")
+    pg.close()
+
+
+def t_reset_lib(browser):
+    """Clearing one library removes its characters and the stars earned there; other libraries stay."""
+    other = char(2, 0, 0)["c"]
+    rec = {"l": 3, "d": 9e15, "n": True, "r": 3, "w": 0}
+    st = seeded("age-3-4", {C1: dict(rec), C2: dict(rec), other: dict(rec)})
+    st["stars"], st["starsByLib"] = 20, {"age-3-4": 7, "age-5-6": 3}
+    pg = Page(browser, NARROW, state=st)
+    p = pg.open()
+    open_settings(p)
+    label = fmt(UI["resetLib"], name=LIBS[0]["name"])
+    p.locator(f".panel .btn:has-text('{label}')").click()
+    p.locator(f".panel .btn:has-text('{UI['resetConfirm']}')").first.click()
+    p.wait_for_selector(".home-actions")
+    s = pg.state()
+    check(C1 not in s["chars"] and C2 not in s["chars"], "3-4 characters not cleared")
+    check(other in s["chars"], "5-6 character cleared too")
+    check(s["stars"] == 13 and "age-3-4" not in s["starsByLib"] and s["starsByLib"]["age-5-6"] == 3, f"stars after reset: {s['stars']} {s['starsByLib']}")
+    check(p.inner_text("#starCount").strip().endswith("13"), "star counter not updated")
+
+    # A star earned now is attributed to the answer's library.
+    open_group(p, 0)
+    group = [x for x in LIBS[0]["groups"][0]["chars"]]
+    open_act(p, UI["listen"])
+    time.sleep(0.8)
+    said = pg.said()
+    target = next(x["c"] for x in group if any(fmt(UI["promptWordOf"], c=x["c"], w=x["w"]) == t for t in said))
+    p.click(f'.opt[aria-label="{target}"]')
+    time.sleep(1.2)
+    check(pg.state()["starsByLib"].get("age-3-4") == 1, f"star not counted for 3-4: {pg.state()['starsByLib']}")
+    pg.close()
+
+
 CHECKS = {
     "load": t_load,
     "font": t_font,
@@ -674,6 +779,8 @@ CHECKS = {
     "speech": t_speech,
     "box": t_box,
     "kept": t_kept,
+    "kids": t_kids,
+    "resetlib": t_reset_lib,
 }
 
 

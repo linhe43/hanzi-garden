@@ -1,6 +1,6 @@
 // Service worker: makes the app work offline after the first visit.
 // Bump CACHE when index.html, data/charsets.json or fonts/kai.woff2 changes so devices pick up the new version.
-const CACHE = 'hanzi-garden-v4';
+const CACHE = 'hanzi-garden-v5';
 const CORE = ['./privacy.html', './', './index.html', './data/charsets.json', './fonts/kai.woff2', './manifest.webmanifest', './icon-180.png', './icon-192.png', './icon-512.png'];
 
 self.addEventListener('install', (e) => {

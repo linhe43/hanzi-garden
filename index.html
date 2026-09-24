@@ -286,6 +286,11 @@ button:focus-visible { outline: 4px solid var(--sky); outline-offset: 3px; }
 .panel input[type=checkbox] { width: 26px; height: 26px; accent-color: var(--leaf); }
 .panel select { font: inherit; font-size: 16px; padding: 8px; border-radius: 10px; border: 2px solid var(--ghost); background: var(--bg-2); color: var(--ink); max-width: 100%; }
 .libs { display: grid; gap: 10px; }
+.kids { display: flex; gap: 10px; flex-wrap: wrap; }
+.kid-btn { width: 64px; height: 64px; border-radius: 50%; border: 3px solid var(--ghost); background: var(--bg-2); font-size: 36px; padding: 0; display: grid; place-items: center; }
+.kid-btn[aria-pressed="true"] { border-color: var(--leaf); background: var(--lv-a); }
+.kid-btn.add { font-size: 28px; border-style: dashed; }
+.kid-badge { font-size: 34px; line-height: 1; }
 .lib-card { text-align: left; border: 3px solid var(--ghost); background: var(--bg-2); border-radius: 18px; padding: 10px 14px; display: grid; grid-template-columns: 1fr auto; gap: 2px 10px; align-items: baseline; }
 .lib-card b { font-weight: 400; font-size: 22px; }
 .lib-card .lib-n { font-size: 16px; color: var(--ink-soft); white-space: nowrap; }
@@ -392,9 +397,16 @@ button:focus-visible { outline: 4px solid var(--sky); outline-offset: 3px; }
     "test": "试听",
     "testSentence": "你好，我们一起来认字吧！",
     "unlockAll": "打开所有关卡",
-    "reset": "清空学习进度",
+    "reset": "清空这个孩子的全部进度",
     "resetConfirm": "再按一次确认清空",
     "resetDone": "进度已经清空",
+    "resetLib": "只清空「{name}」的进度",
+    "resetLibDone": "「{name}」的进度已经清空",
+    "kids": "谁在学",
+    "kidsNote": "每个孩子有自己的星星、花园和学习进度。用小动物区分，不需要填名字。",
+    "addKid": "添加一个孩子",
+    "removeKid": "移除这个孩子",
+    "removeKidConfirm": "再按一次确认移除（这个孩子的进度会删除）",
     "syncCloud": "学习进度保存在您的 claude.ai 账号里，两台电脑都能接着学。",
     "syncLocal": "学习进度保存在这台设备的浏览器里。",
     "noVoice": "没有找到中文语音。建议用 Edge 浏览器打开；或在 Windows 设置 → 时间和语言 → 语言和区域 里添加中文（简体）并安装语音包。",
@@ -415,6 +427,7 @@ button:focus-visible { outline: 4px solid var(--sky); outline-offset: 3px; }
   "retry": ["再试试！", "没关系，再找找", "差一点点！"],
   "flowers": ["🌷", "🌻", "🌸", "🌼", "🌹", "🌺", "💐"],
   "bugs": ["🦋", "🐝", "🐞", "🐛"],
+  "avatars": ["🐰", "🐻", "🐼", "🦊"],
   "garden": ["🌱", "🌷", "🌻", "🌳", "🍄", "🐞", "🌼", "🦋", "🐝", "🌸", "🐸", "🍓", "🐌", "🌵", "🐿️", "🌹"]
 }
 </script>
@@ -483,6 +496,7 @@ button:focus-visible { outline: 4px solid var(--sky); outline-offset: 3px; }
 
   // ---------- progress state (spaced repetition) ----------
   const LS_KEY = 'hanzi-garden-progress-v1';
+  const SESSION_KEY = 'hanzi-garden-session-v1';
   const HOUR = 3600e3, DAY = 24 * HOUR;
   // Review interval after reaching each level (level 0..5).
   const INTERVALS = [0, 4 * HOUR, 1 * DAY, 3 * DAY, 7 * DAY, 16 * DAY];
@@ -490,8 +504,9 @@ button:focus-visible { outline: 4px solid var(--sky); outline-offset: 3px; }
   // Storage key stays at -v1: the per-character progress format is unchanged, so v1 progress carries over.
   const defaultState = () => ({
     v: 2, stars: 0, chars: {},
-    settings: { rate: 0.8, voice: '', unlockAll: false, sessionMin: 15, libraryId: 'age-3-4', showPinyin: false, dailyNew: null },
+    settings: { unlockAll: false, sessionMin: 15, libraryId: 'age-3-4', showPinyin: false, dailyNew: null },
     newLog: { day: '', byLib: {} }, // new characters introduced by daily practice today, per library id
+    starsByLib: {},                 // stars earned per library id (counted from this version on)
     doneNotice: [],                 // library ids whose "library finished" note was already shown
     updatedAt: 0,
   });
@@ -503,17 +518,39 @@ button:focus-visible { outline: 4px solid var(--sky); outline-offset: 3px; }
     out.chars = out.chars || {};
     if (!out.newLog || !out.newLog.byLib) out.newLog = { day: '', byLib: {} }; // older shape: { day, count }
     out.doneNotice = out.doneNotice || [];
+    out.starsByLib = out.starsByLib || {};
     out.v = 2;
     return out;
   }
-  function loadLocal() {
-    try { const raw = localStorage.getItem(LS_KEY); if (raw) return normalize(JSON.parse(raw)); } catch (e) { /* storage unavailable */ }
-    return defaultState();
+  // ---------- children on this device ----------
+  // Each child is an animal avatar (no names) with their own progress and session timer.
+  // The first child keeps the original storage keys, so existing progress is used as is.
+  const KIDS_KEY = 'hanzi-garden-kids-v1';
+  const KID_IDS = ['p1', 'p2', 'p3', 'p4'];
+  const progressKey = (id) => (id === 'p1' ? LS_KEY : LS_KEY + '-' + id);
+  const sessionKey = (id) => (id === 'p1' ? SESSION_KEY : SESSION_KEY + '-' + id);
+  function readJson(key) { try { return JSON.parse(localStorage.getItem(key)); } catch (e) { return null; } }
+  function writeKids() { try { localStorage.setItem(KIDS_KEY, JSON.stringify(kids)); } catch (e) { /* ignore */ } }
+  let kids = readJson(KIDS_KEY);
+  if (!kids || !Array.isArray(kids.list) || !kids.list.length) {
+    // First run of this version: the existing progress becomes the first child. Speech rate and voice
+    // move to device settings shared by all children.
+    const old = (readJson(LS_KEY) || {}).settings || {};
+    kids = { current: 'p1', list: [{ id: 'p1', avatar: DATA.avatars[0] }], device: { rate: old.rate || 0.8, voice: old.voice || '' } };
+    writeKids();
   }
-  let state = loadLocal();
+  if (!kids.list.some((k) => k.id === kids.current)) kids.current = kids.list[0].id;
+  kids.device = Object.assign({ rate: 0.8, voice: '' }, kids.device);
+  const currentKid = () => kids.list.find((k) => k.id === kids.current);
 
-  let remoteRef = null, syncMode = 'local', saveTimer = null, writing = false, pendingWrite = false;
-  function writeLocal() { try { localStorage.setItem(LS_KEY, JSON.stringify(state)); } catch (e) { /* ignore */ } }
+  function loadLocal(id) {
+    const raw = readJson(progressKey(id));
+    return raw ? normalize(raw) : defaultState();
+  }
+  let state = loadLocal(kids.current);
+
+  let remoteRef = null, syncMode = 'local', saveTimer = null, writing = false, pendingWrite = false, remoteGen = 0;
+  function writeLocal() { try { localStorage.setItem(progressKey(kids.current), JSON.stringify(state)); } catch (e) { /* ignore */ } }
   function save() {
     state.updatedAt = Date.now();
     writeLocal();
@@ -529,13 +566,15 @@ button:focus-visible { outline: 4px solid var(--sky); outline-offset: 3px; }
   }
   async function initRemote() {
     if (!window.claude || typeof window.claude.use !== 'function') return;
+    const gen = ++remoteGen, id = kids.current; // a child switch while this runs makes it stale
     try {
       const [db, user] = await Promise.all([window.claude.use('db'), window.claude.use('user')]);
       if (!db || !user) return;
       const uid = await user.id();
       if (!uid) return;
-      const ref = db.doc('data/users/' + uid + '/progress');
+      const ref = db.doc('data/users/' + uid + '/progress' + (id === 'p1' ? '' : '-' + id));
       const snap = await ref.get();
+      if (gen !== remoteGen) return;
       remoteRef = ref;
       syncMode = 'cloud';
       const remote = snap.exists ? snap.data() : null;
@@ -548,6 +587,32 @@ button:focus-visible { outline: 4px solid var(--sky); outline-offset: 3px; }
         pushRemote();
       }
     } catch (e) { console.warn('cloud progress unavailable', e); }
+  }
+
+  function switchKid(id) {
+    if (remoteRef) { clearTimeout(saveTimer); pushRemote(); } // flush this child's pending cloud write
+    saveSession();
+    remoteRef = null; syncMode = 'local'; remoteGen++;
+    kids.current = id;
+    writeKids();
+    state = loadLocal(id);
+    session = loadSession(id);
+    initRemote();
+  }
+  function addKid() {
+    const id = KID_IDS.find((k) => !kids.list.some((x) => x.id === k));
+    if (!id) return;
+    const avatar = DATA.avatars.find((a) => !kids.list.some((x) => x.avatar === a));
+    try { localStorage.removeItem(progressKey(id)); localStorage.removeItem(sessionKey(id)); } catch (e) { /* ignore */ }
+    kids.list.push({ id, avatar });
+    switchKid(id);
+  }
+  function removeKid(id) {
+    if (kids.list.length < 2) return;
+    kids.list = kids.list.filter((k) => k.id !== id);
+    try { localStorage.removeItem(progressKey(id)); localStorage.removeItem(sessionKey(id)); } catch (e) { /* ignore */ }
+    if (kids.current === id) switchKid(kids.list[0].id);
+    else writeKids();
   }
 
   const EMPTY = { l: 0, d: 0, n: false, r: 0, w: 0 };
@@ -596,7 +661,7 @@ button:focus-visible { outline: 4px solid var(--sky); outline-offset: 3px; }
     pickVoice();
   }
   function pickVoice() {
-    const pref = state.settings.voice;
+    const pref = kids.device.voice;
     zhVoice = zhVoices.find((v) => v.name === pref)
       || zhVoices.find((v) => /xiaoxiao|xiaoyi|natural|online/i.test(v.name))
       || zhVoices.find((v) => /huihui|yaoyao|google/i.test(v.name))
@@ -614,7 +679,7 @@ button:focus-visible { outline: 4px solid var(--sky); outline-offset: 3px; }
     const u = new SpeechSynthesisUtterance(text);
     u.lang = 'zh-CN';
     if (zhVoice) u.voice = zhVoice;
-    u.rate = state.settings.rate;
+    u.rate = kids.device.rate;
     u.pitch = 1.1;
     speakTimer = setTimeout(() => speechSynthesis.speak(u), 60);
   }
@@ -650,30 +715,28 @@ button:focus-visible { outline: 4px solid var(--sky); outline-offset: 3px; }
     flip: () => tones([520], 0.06, 'sine', 0, 0.1),
   };
 
-  // ---------- session timer (counts only while the page is visible) ----------
-  const SESSION_KEY = 'hanzi-garden-session-v1';
+  // ---------- session timer (counts only while the page is visible, one per child) ----------
   const SESSION_GAP = 30 * 60e3; // a pause longer than this starts a new session
-  function loadSession() {
-    try {
-      const s = JSON.parse(localStorage.getItem(SESSION_KEY));
-      if (s && Date.now() - s.last < SESSION_GAP) return s;
-    } catch (e) { /* ignore */ }
+  function loadSession(id) {
+    const s = readJson(sessionKey(id));
+    if (s && Date.now() - s.last < SESSION_GAP) return s;
     return { used: 0, last: Date.now() };
   }
-  const session = loadSession();
+  function saveSession() { try { localStorage.setItem(sessionKey(kids.current), JSON.stringify(session)); } catch (e) { /* ignore */ } }
+  let session = loadSession(kids.current);
   let tickLast = Date.now(), tickCount = 0;
   setInterval(() => {
     const now = Date.now();
     if (now - session.last > SESSION_GAP) session.used = 0;
     if (document.visibilityState === 'visible') session.used += Math.min(now - tickLast, 5000);
     tickLast = now; session.last = now;
-    if (++tickCount % 5 === 0) { try { localStorage.setItem(SESSION_KEY, JSON.stringify(session)); } catch (e) { /* ignore */ } }
+    if (++tickCount % 5 === 0) saveSession();
   }, 1000);
   const limitMs = () => (state.settings.sessionMin || 0) * 60e3;
   const timeUp = () => limitMs() > 0 && session.used >= limitMs();
   function extendSession() {
     session.used = Math.max(0, limitMs() - 10 * 60e3);
-    try { localStorage.setItem(SESSION_KEY, JSON.stringify(session)); } catch (e) { /* ignore */ }
+    saveSession();
   }
 
   // ---------- audio unlock (iOS Safari only allows sound after a user gesture) ----------
@@ -715,12 +778,14 @@ button:focus-visible { outline: 4px solid var(--sky); outline-offset: 3px; }
 
   function topbar(title, onBack) {
     return h('header', { class: 'top' },
-      onBack ? h('button', { class: 'btn small ghost', onclick: onBack }, emo('⬅️'), UI.back) : h('span'),
+      onBack ? h('button', { class: 'btn small ghost', onclick: onBack }, emo('⬅️'), UI.back)
+        : kids.list.length > 1 ? emo(currentKid().avatar, 'kid-badge') : h('span'),
       h('h1', { class: 'top-title' }, title),
       h('div', { class: 'stars', id: 'starCount' }, emo('⭐'), ' ', h('b', {}, state.stars)));
   }
-  function addStar(fromEl) {
+  function addStar(fromEl, c) {
     state.stars += 1;
+    if (c) { const id = LIBS[CHAR.get(c).lib].id; state.starsByLib[id] = (state.starsByLib[id] || 0) + 1; }
     save();
     const counter = document.getElementById('starCount');
     const shown = state.stars;
@@ -1078,7 +1143,7 @@ button:focus-visible { outline: 4px solid var(--sky); outline-offset: 3px; }
             b.classList.add('right');
             sfx.good();
             burst(b, CHEER, 16);
-            if (wrong === 0) { grade(it.c, true); addStar(b); earned++; }
+            if (wrong === 0) { grade(it.c, true); addStar(b, it.c); earned++; }
             if (it.m === 'fill') {
               blanks.forEach((t) => { t.firstChild.textContent = it.c; t.classList.add('filled'); });
               speak(x.w);
@@ -1262,7 +1327,7 @@ button:focus-visible { outline: 4px solid var(--sky); outline-offset: 3px; }
           a.el.classList.add('matched'); b.el.classList.add('matched');
           burst(a.el, CHEER, 8); burst(b.el, CHEER, 8);
           sfx.good(); sayChar(a.c);
-          grade(a.c, true); addStar(b.el); earned++;
+          grade(a.c, true); addStar(b.el, a.c); earned++;
           matched++; busy = false;
           if (matched === chosen.length) {
             const lastRound = round >= SIZES.length - 1;
@@ -1333,7 +1398,7 @@ button:focus-visible { outline: 4px solid var(--sky); outline-offset: 3px; }
           p.el.append(h('span', { class: 'bug' }, pick(DATA.bugs)));
           sfx.good();
           sayChar(p.c);
-          if (!missed) { grade(p.c, true); addStar(p.el); earned++; }
+          if (!missed) { grade(p.c, true); addStar(p.el, p.c); earned++; }
           idx++; renderScore();
           if (idx >= order.length) {
             later(() => show(renderEnd, { earned, onAgain: () => show(renderFlowers, li, gi), onBack: back }), 1800);
@@ -1461,34 +1526,68 @@ button:focus-visible { outline: 4px solid var(--sky); outline-offset: 3px; }
       return b;
     }));
 
-    const rateOut = h('span', {}, state.settings.rate.toFixed(2));
-    const rate = h('input', { type: 'range', min: '0.5', max: '1.2', step: '0.05', value: String(state.settings.rate) });
-    rate.addEventListener('input', () => { state.settings.rate = parseFloat(rate.value); rateOut.textContent = state.settings.rate.toFixed(2); });
-    rate.addEventListener('change', save);
+    const rateOut = h('span', {}, kids.device.rate.toFixed(2));
+    const rate = h('input', { type: 'range', min: '0.5', max: '1.2', step: '0.05', value: String(kids.device.rate) });
+    rate.addEventListener('input', () => { kids.device.rate = parseFloat(rate.value); rateOut.textContent = kids.device.rate.toFixed(2); });
+    rate.addEventListener('change', writeKids);
 
     const voiceSel = h('select', {}, zhVoices.map((v) => h('option', { value: v.name, selected: zhVoice && v.name === zhVoice.name }, v.name)));
-    voiceSel.addEventListener('change', () => { state.settings.voice = voiceSel.value; pickVoice(); save(); });
+    voiceSel.addEventListener('change', () => { kids.device.voice = voiceSel.value; pickVoice(); writeKids(); });
 
     const unlock = h('input', { type: 'checkbox', checked: state.settings.unlockAll });
     unlock.addEventListener('change', () => { state.settings.unlockAll = unlock.checked; save(); });
 
-    let armed = false, armTimer = null;
-    const resetBtn = h('button', { class: 'btn small ghost' }, UI.reset);
-    resetBtn.addEventListener('click', () => {
-      if (!armed) {
-        armed = true; resetBtn.textContent = UI.resetConfirm; resetBtn.classList.replace('ghost', 'berry');
-        armTimer = setTimeout(() => { armed = false; resetBtn.textContent = UI.reset; resetBtn.classList.replace('berry', 'ghost'); }, 4000);
-        return;
-      }
-      clearTimeout(armTimer);
+    // Destructive actions need a second press within 4 seconds.
+    function confirmButton(label, confirmLabel, onConfirm) {
+      let armed = false, armTimer = null;
+      const btn = h('button', { class: 'btn small ghost' }, label);
+      btn.addEventListener('click', () => {
+        if (!armed) {
+          armed = true; btn.textContent = confirmLabel; btn.classList.replace('ghost', 'berry');
+          armTimer = setTimeout(() => { armed = false; btn.textContent = label; btn.classList.replace('berry', 'ghost'); }, 4000);
+          return;
+        }
+        clearTimeout(armTimer);
+        onConfirm();
+      });
+      return btn;
+    }
+    // Re-render the screen behind for the newly selected child, then show their settings.
+    const reopen = () => { overlay.remove(); show(currentScreen === renderHome ? renderHome : currentScreen); openSettings(); };
+
+    // Children: tap an avatar to switch; the panel then shows that child's settings.
+    const kidRow = h('div', { class: 'kids', role: 'radiogroup', 'aria-label': UI.kids },
+      kids.list.map((k) => h('button', {
+        class: 'kid-btn', role: 'radio', 'aria-pressed': String(k.id === kids.current), 'aria-checked': String(k.id === kids.current), 'data-kid': k.id,
+        onclick: () => { if (k.id !== kids.current) { switchKid(k.id); reopen(); } },
+      }, emo(k.avatar))),
+      kids.list.length < KID_IDS.length
+        ? h('button', { class: 'kid-btn add', 'aria-label': UI.addKid, title: UI.addKid, onclick: () => { addKid(); reopen(); } }, '➕')
+        : null);
+
+    const lib = currentLib();
+    const resetLibBtn = confirmButton(fmt(UI.resetLib, { name: lib.name }), UI.resetConfirm, () => {
+      // Clears this library's characters and the stars they earned; other libraries are untouched.
+      lib.groups.forEach((g) => g.chars.forEach((x) => { delete state.chars[x.c]; }));
+      state.stars = Math.max(0, state.stars - (state.starsByLib[lib.id] || 0));
+      delete state.starsByLib[lib.id];
+      delete state.newLog.byLib[lib.id];
+      state.doneNotice = state.doneNotice.filter((id) => id !== lib.id);
+      save(); toast(fmt(UI.resetLibDone, { name: lib.name })); close();
+    });
+    const resetBtn = confirmButton(UI.reset, UI.resetConfirm, () => {
       const keep = state.settings;
       state = defaultState(); state.settings = keep;
       save(); toast(UI.resetDone); close();
     });
+    const removeBtn = kids.list.length > 1
+      ? confirmButton(UI.removeKid, UI.removeKidConfirm, () => { removeKid(kids.current); close(); })
+      : null;
 
     const overlay = h('div', { class: 'overlay', onclick: (e) => { if (e.target === overlay) close(); } },
       h('div', { class: 'panel', role: 'dialog', 'aria-modal': 'true' },
         h('h2', {}, UI.settings),
+        h('div', {}, h('p', { class: 'note' }, UI.kids), kidRow, h('p', { class: 'note' }, UI.kidsNote)),
         h('div', { class: 'libs-wrap' }, h('p', { class: 'note' }, UI.library), libCards),
         h('label', {}, UI.dailyNew, newSel, h('span', { class: 'note' }, UI.dailyNewNote)),
         h('label', {}, UI.sessionLen, lenSel),
@@ -1500,7 +1599,8 @@ button:focus-visible { outline: 4px solid var(--sky); outline-offset: 3px; }
         h('div', { class: 'row' }, h('button', { class: 'btn small sun', onclick: () => speak(UI.testSentence) }, emo('🔊'), UI.test)),
         h('label', { class: 'inline' }, unlock, UI.unlockAll),
         h('p', { class: 'note' }, syncMode === 'cloud' ? UI.syncCloud : UI.syncLocal),
-        h('div', { class: 'row' }, resetBtn, h('button', { class: 'btn small leaf', onclick: () => close() }, UI.confirm))));
+        h('div', { class: 'row' }, resetLibBtn, resetBtn, removeBtn),
+        h('div', { class: 'row' }, h('button', { class: 'btn small leaf', onclick: () => close() }, UI.confirm))));
     function close() { overlay.remove(); show(currentScreen === renderHome ? renderHome : currentScreen); }
     document.body.append(overlay);
   }
