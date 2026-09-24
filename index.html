@@ -1,0 +1,1371 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Hanzi Garden</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-180.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="识字小花园">
+<meta name="theme-color" content="#CDEDF4">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=ZCOOL+KuaiLe&family=Noto+Serif+SC:wght@600&family=Noto+Color+Emoji&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #CDEDF4;
+  --bg-2: #E6F7FA;
+  --paper: #FFFFFF;
+  --ink: #1F3A4D;
+  --ink-soft: #587486;
+  --grid: #3FAE72;
+  --sun: #FFC43D;
+  --sun-d: #D99A12;
+  --berry: #EF5B6B;
+  --berry-d: #C23B4C;
+  --leaf: #2FA866;
+  --leaf-d: #1D7F4A;
+  --sky: #5BB8D6;
+  --sky-d: #3A8FAD;
+  --ghost: rgba(31, 58, 77, .08);
+  --trace: #EF5B6B;
+  --lv-a: #E9F7EE;
+  --lv-b: #BFE8CD;
+  --lv-c: #7FD19F;
+  --lv-d: #FFD66B;
+  --f-ui: "ZCOOL KuaiLe", "Microsoft YaHei", "PingFang SC", sans-serif;
+  --f-han: "KaiTi", "STKaiti", "Noto Serif SC", serif;
+  --f-emoji: "Noto Color Emoji", "Segoe UI Emoji", "Apple Color Emoji", sans-serif;
+  --f-py: "Segoe UI", "Microsoft YaHei", Arial, sans-serif;
+  box-sizing: border-box;
+  padding-top: env(safe-area-inset-top, 0px);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+  height: 100%;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0F2530; --bg-2: #15313E; --paper: #1C3A48; --ink: #EAF6FA; --ink-soft: #9DBBC8;
+    --grid: #5ACB8C; --sun: #FFCF5A; --sun-d: #C5951C; --berry: #FF7A86; --berry-d: #C4475A;
+    --leaf: #3DBF78; --leaf-d: #24854F; --sky: #4FA9C7; --sky-d: #2D7C98; --ghost: rgba(234, 246, 250, .08);
+    --trace: #FF7A86; --lv-a: #21463A; --lv-b: #2B6048; --lv-c: #33875B; --lv-d: #9C7A1E;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0F2530; --bg-2: #15313E; --paper: #1C3A48; --ink: #EAF6FA; --ink-soft: #9DBBC8;
+  --grid: #5ACB8C; --sun: #FFCF5A; --sun-d: #C5951C; --berry: #FF7A86; --berry-d: #C4475A;
+  --leaf: #3DBF78; --leaf-d: #24854F; --sky: #4FA9C7; --sky-d: #2D7C98; --ghost: rgba(234, 246, 250, .08);
+  --trace: #FF7A86; --lv-a: #21463A; --lv-b: #2B6048; --lv-c: #33875B; --lv-d: #9C7A1E;
+}
+*, *::before, *::after { box-sizing: inherit; }
+html { scroll-padding-top: env(safe-area-inset-top, 0px); }
+body {
+  height: 100%; margin: 0; background: var(--bg); color: var(--ink);
+  font-family: var(--f-ui); -webkit-user-select: none; user-select: none;
+  touch-action: manipulation; overflow: hidden; -webkit-tap-highlight-color: transparent;
+}
+img, canvas { max-width: 100%; }
+button { font: inherit; color: inherit; cursor: pointer; }
+button:focus-visible { outline: 4px solid var(--sky); outline-offset: 3px; }
+.emoji { font-family: var(--f-emoji); line-height: 1; }
+
+#app { height: 100%; max-width: 1100px; margin: 0 auto; padding: 10px 16px 12px; display: flex; flex-direction: column; }
+.screen { flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden; padding: 4px 2px 16px; }
+
+/* top bar */
+.top { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 12px; padding: 4px 0 10px; }
+.top-title { margin: 0; font-size: clamp(20px, 3.2vw, 30px); font-weight: 400; text-align: center; }
+.stars { font-size: 22px; background: var(--paper); padding: 6px 14px; border-radius: 999px; box-shadow: 0 3px 0 var(--ghost); white-space: nowrap; }
+.stars b { font-weight: 400; }
+.stars.bump { animation: bump .45s ease; }
+@keyframes bump { 40% { transform: scale(1.35) rotate(-6deg); } }
+
+/* chunky toy buttons */
+.btn {
+  border: 0; border-radius: 22px; padding: 14px 22px; font-size: 22px; background: var(--paper);
+  box-shadow: 0 6px 0 var(--ghost), 0 6px 0 rgba(0,0,0,.12); transition: transform .08s, box-shadow .08s;
+  display: inline-flex; align-items: center; justify-content: center; gap: 10px; min-height: 60px;
+}
+.btn:active { transform: translateY(5px); box-shadow: 0 1px 0 rgba(0,0,0,.12); }
+.btn.sun { background: var(--sun); color: #3A2A00; box-shadow: 0 6px 0 var(--sun-d); }
+.btn.leaf { background: var(--leaf); color: #fff; box-shadow: 0 6px 0 var(--leaf-d); }
+.btn.berry { background: var(--berry); color: #fff; box-shadow: 0 6px 0 var(--berry-d); }
+.btn.sky { background: var(--sky); color: #fff; box-shadow: 0 6px 0 var(--sky-d); }
+.btn.small { font-size: 18px; padding: 8px 16px; min-height: 46px; border-radius: 16px; }
+.btn.ghost { background: var(--ghost); box-shadow: none; }
+.btn.ghost:active { transform: scale(.96); }
+.btn[disabled] { opacity: .45; }
+
+/* the tian-zi-ge grid square */
+.tzg { position: relative; aspect-ratio: 1; border: 3px solid var(--grid); background: var(--paper); border-radius: 8px; container-type: inline-size; }
+.tzg::before { content: ""; position: absolute; left: 0; right: 0; top: 50%; border-top: 2px dashed var(--grid); opacity: .5; }
+.tzg::after { content: ""; position: absolute; top: 0; bottom: 0; left: 50%; border-left: 2px dashed var(--grid); opacity: .5; }
+.tzg .han { position: absolute; inset: 0; display: grid; place-items: center; font-family: var(--f-han); font-size: 74cqw; line-height: 1; z-index: 1; transition: opacity .2s; padding-bottom: 4cqw; }
+
+/* home */
+.home { display: flex; flex-direction: column; align-items: center; gap: 22px; padding-top: 8px; }
+.title-tiles { display: flex; gap: 8px; margin-top: 6px; }
+.title-tiles .tzg { width: clamp(58px, 12vw, 104px); }
+.title-tiles .tzg:nth-child(odd) { transform: rotate(-4deg); }
+.title-tiles .tzg:nth-child(even) { transform: rotate(3deg) translateY(6px); }
+.title-tiles .tzg:nth-child(3) { border-color: var(--berry); }
+.title-tiles .tzg:nth-child(3)::before, .title-tiles .tzg:nth-child(3)::after { border-color: var(--berry); }
+.garden {
+  width: min(100%, 760px); min-height: 84px; background: linear-gradient(to top, transparent 0 4px, var(--grid) 4px 10px, transparent 10px);
+  display: flex; flex-wrap: wrap; justify-content: center; align-items: flex-end; gap: 2px 6px; padding: 6px 12px 10px;
+}
+.plant { font-family: var(--f-emoji); font-size: 36px; animation: sprout .5s both; }
+@keyframes sprout { from { transform: scale(0) translateY(20px); } }
+.garden-empty { margin: 0 0 8px; font-size: 20px; color: var(--ink-soft); }
+.home-actions { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; width: min(100%, 820px); }
+.home-actions .btn { flex-direction: column; font-size: 26px; padding: 22px 12px; min-height: 150px; border-radius: 28px; }
+.home-actions .btn .emoji { font-size: 52px; }
+.home-actions .badge { font-size: 16px; opacity: .9; }
+.home-foot { display: flex; justify-content: flex-end; width: min(100%, 820px); }
+.parent { position: relative; overflow: hidden; }
+.parent::after { content: ""; position: absolute; left: 0; bottom: 0; height: 4px; width: 0; background: var(--sun); }
+.parent.holding::after { width: 100%; transition: width 2s linear; }
+
+/* map */
+.stage-h { font-weight: 400; font-size: 26px; margin: 8px 0 12px; }
+.groups { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 16px; }
+.gcard { text-align: left; border: 0; background: var(--paper); border-radius: 24px; padding: 14px 14px 16px; box-shadow: 0 6px 0 rgba(0,0,0,.1); position: relative; }
+.gcard:active { transform: translateY(4px); box-shadow: 0 2px 0 rgba(0,0,0,.1); }
+.gcard-head { display: flex; align-items: center; gap: 8px; white-space: nowrap; margin-bottom: 10px; font-size: 22px; }
+.gcard-head .num { white-space: nowrap; background: var(--sky); color: #fff; border-radius: 999px; padding: 2px 10px; font-size: 17px; }
+.gcard-head .emoji { font-size: 28px; }
+.gcard-head .lock { margin-left: auto; font-family: var(--f-emoji); }
+.gcard.locked { opacity: .55; }
+.minis { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; }
+.mini { font-family: var(--f-han); font-size: 24px; text-align: center; border-radius: 8px; padding: 3px 0; background: var(--ghost); }
+.lv-a { background: var(--lv-a); }
+.lv-b { background: var(--lv-b); }
+.lv-c { background: var(--lv-c); }
+.lv-d { background: var(--lv-d); }
+
+/* group screen */
+.char-row { display: grid; grid-template-columns: repeat(10, minmax(0, 1fr)); gap: 8px; margin-bottom: 22px; }
+.char-row .tzg { border-width: 2px; cursor: pointer; padding: 0; }
+.char-row .tzg.lv-a, .char-row .tzg.lv-b, .char-row .tzg.lv-c, .char-row .tzg.lv-d { border-width: 3px; }
+.acts { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 16px; }
+.acts .btn { flex-direction: column; min-height: 130px; font-size: 24px; border-radius: 26px; }
+.acts .btn .emoji { font-size: 44px; }
+
+/* learn */
+.learn-card { display: grid; grid-template-columns: 1fr 1fr; gap: 26px; align-items: center; max-width: 900px; margin: 0 auto; }
+.learn-info { display: flex; flex-direction: column; align-items: center; gap: 10px; text-align: center; }
+.learn-pic { font-size: clamp(70px, 13vw, 130px); min-height: 1.2em; display: flex; flex-wrap: wrap; justify-content: center; max-width: 100%; }
+.learn-pic.many { font-size: clamp(34px, 5vw, 52px); max-width: 320px; }
+.pinyin { font-family: var(--f-py); font-size: clamp(32px, 5vw, 48px); letter-spacing: .02em; }
+.word { font-family: var(--f-han); font-size: clamp(32px, 5vw, 46px); }
+.word .hl { color: var(--berry); }
+.learn-box { position: relative; width: min(100%, 52vh, 420px); justify-self: center; }
+.learn-box .tzg { width: 100%; }
+.learn-box canvas { position: absolute; inset: 0; width: 100%; height: 100%; z-index: 2; touch-action: none; pointer-events: none; border-radius: 8px; }
+.learn-box.tracing canvas { pointer-events: auto; }
+.learn-box.tracing .han { opacity: .22; }
+.learn-tools { display: flex; gap: 12px; justify-content: center; margin-top: 14px; flex-wrap: wrap; }
+.learn-nav { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 22px; max-width: 900px; margin-left: auto; margin-right: auto; }
+.dots { display: flex; gap: 6px; flex-wrap: wrap; justify-content: center; }
+.dots span { width: 12px; height: 12px; border-radius: 50%; background: var(--ghost); }
+.dots span.on { background: var(--leaf); }
+.dots span.cur { background: var(--sun); transform: scale(1.3); }
+
+/* quiz */
+.bar { height: 14px; background: var(--ghost); border-radius: 999px; overflow: hidden; margin: 2px 0 14px; }
+.bar i { display: block; height: 100%; background: var(--leaf); border-radius: 999px; transition: width .4s; }
+.prompt { display: flex; flex-direction: column; align-items: center; gap: 8px; min-height: 180px; justify-content: center; margin-bottom: 14px; }
+.prompt .big-pic { font-size: clamp(80px, 15vh, 140px); display: flex; flex-wrap: wrap; justify-content: center; max-width: 520px; }
+.prompt .big-pic.many { font-size: clamp(38px, 6vh, 56px); }
+.prompt .hint { font-size: 20px; color: var(--ink-soft); }
+.speaker { width: clamp(110px, 18vh, 150px); height: clamp(110px, 18vh, 150px); border-radius: 50%; border: 0; font-size: clamp(54px, 9vh, 72px); background: var(--sun); box-shadow: 0 7px 0 var(--sun-d); }
+.speaker:active { transform: translateY(5px); box-shadow: 0 2px 0 var(--sun-d); }
+.speaker.small { width: 76px; height: 76px; font-size: 40px; }
+.options { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; max-width: 860px; margin: 0 auto; }
+.opt { padding: 0; border-radius: 12px; }
+.opt .tzg { width: 100%; }
+.opt.right .tzg { border-color: var(--leaf); background: var(--lv-b); animation: hop .5s; }
+.opt.wrong .tzg { border-color: var(--berry); animation: shake .4s; }
+.opt.wrong { opacity: .5; }
+.opt.hint .tzg { animation: glow 1s infinite; }
+.opt { background: none; border: 0; }
+@keyframes hop { 40% { transform: translateY(-16px) scale(1.06); } }
+@keyframes shake { 20%, 60% { transform: translateX(-10px); } 40%, 80% { transform: translateX(10px); } }
+@keyframes glow { 50% { box-shadow: 0 0 0 8px var(--sun); } }
+.praise { font-size: 34px; color: var(--leaf); height: 44px; text-align: center; margin-top: 8px; }
+.praise.no { color: var(--berry); }
+.praise.pop { animation: bump .5s; }
+
+/* memory */
+.mem-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; max-width: 760px; margin: 0 auto; }
+.mcard { aspect-ratio: 1; border: 0; padding: 0; background: none; perspective: 700px; container-type: inline-size; }
+.mcard .inner { position: relative; width: 100%; height: 100%; transition: transform .35s; transform-style: preserve-3d; }
+.mcard.flipped .inner, .mcard.matched .inner { transform: rotateY(180deg); }
+.mcard .face { position: absolute; inset: 0; border-radius: 18px; display: grid; place-items: center; backface-visibility: hidden; overflow: hidden; }
+.mcard .back { background: var(--sky); box-shadow: 0 5px 0 var(--sky-d); color: #fff; font-size: 40cqw; background-image: radial-gradient(circle at 25% 25%, rgba(255,255,255,.25) 0 12%, transparent 13%), radial-gradient(circle at 75% 75%, rgba(255,255,255,.25) 0 12%, transparent 13%); }
+.mcard .front { background: var(--paper); transform: rotateY(180deg); border: 3px solid var(--grid); }
+.mcard .front .han { font-family: var(--f-han); font-size: 64cqw; line-height: 1; }
+.mcard .front .emoji { font-size: 48cqw; text-align: center; padding: 6cqw; word-break: break-all; }
+.mcard .front .emoji.many { font-size: 20cqw; }
+.mcard .front .emoji.few { font-size: 30cqw; }
+.mcard.matched .front { background: var(--lv-b); border-color: var(--leaf); }
+.mcard.matched { animation: hop .5s; }
+
+/* memory header */
+.mem-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; max-width: 760px; margin: 0 auto 8px; }
+.mem-hint { font-size: 21px; text-align: center; flex: 1; }
+.mem-bar { max-width: 760px; margin: 0 auto 14px; }
+.mem-bar i { background: var(--sun); }
+.mcard.matched .face.front { box-shadow: 0 0 0 4px var(--leaf); }
+
+/* flying emoji effects */
+.fx { position: fixed; left: 0; top: 0; pointer-events: none; z-index: 40; font-family: var(--f-emoji); font-size: 36px; line-height: 1; will-change: transform, opacity; }
+
+/* flower garden game */
+.f-hud { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 0 auto 14px; max-width: 860px; }
+.f-hint { font-size: 20px; text-align: center; flex: 1; }
+.f-score { font-size: 26px; font-family: var(--f-emoji); letter-spacing: 2px; }
+.bed { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; max-width: 860px; margin: 0 auto; }
+.plot { border: 0; padding: 10px 8px 0; border-radius: 22px; background: var(--paper); box-shadow: 0 5px 0 rgba(0,0,0,.1); display: flex; flex-direction: column; align-items: center; position: relative; overflow: hidden; container-type: inline-size; }
+.plot:active { transform: translateY(3px); }
+.plot .sprout { font-family: var(--f-emoji); font-size: 30cqw; line-height: 1.15; transform-origin: bottom center; }
+.plot .sign { font-family: var(--f-han); font-size: 32cqw; line-height: 1; background: #F6E6C8; color: #5A3A1A; border: 3px solid #C99A5B; border-radius: 10px; padding: 2cqw 8cqw 4cqw; margin-top: 2cqw; }
+.plot .soil { align-self: stretch; height: 13cqw; background: #8B5E3C; margin: 4cqw -8px 0; border-radius: 50% 50% 0 0 / 70% 70% 0 0; }
+.plot.bloom { background: var(--lv-b); }
+.plot.bloom .sprout { font-size: 40cqw; line-height: .9; animation: bloom .7s; }
+.plot.nope { animation: shake .4s; }
+.plot.hint { animation: glow 1s infinite; }
+.plot .drop { position: absolute; top: 0; left: 50%; font-family: var(--f-emoji); font-size: 20cqw; animation: drop .5s forwards; pointer-events: none; }
+.plot .bug { position: absolute; top: 3cqw; right: 5cqw; font-family: var(--f-emoji); font-size: 18cqw; animation: sprout .5s; pointer-events: none; }
+@keyframes bloom { 0% { transform: scale(.3); } 60% { transform: scale(1.25) rotate(-8deg); } 100% { transform: scale(1); } }
+@keyframes drop { from { transform: translate(-50%, -40%); opacity: 1; } to { transform: translate(-50%, 140%); opacity: 0; } }
+
+/* end + box */
+.end { display: flex; flex-direction: column; align-items: center; gap: 14px; text-align: center; padding-top: 4vh; }
+.end .emoji.hero { font-size: 110px; animation: hop 1s 2; }
+.end h2 { font-weight: 400; font-size: 40px; margin: 0; }
+.end p { font-size: 24px; margin: 0; }
+.end .row { display: flex; gap: 16px; flex-wrap: wrap; justify-content: center; margin-top: 10px; }
+.box-sum { font-size: 22px; text-align: center; margin: 0 0 8px; }
+.legend { display: flex; gap: 14px; justify-content: center; flex-wrap: wrap; margin-bottom: 16px; font-size: 17px; }
+.legend span { display: inline-flex; align-items: center; gap: 6px; }
+.legend i { width: 20px; height: 20px; border-radius: 6px; display: inline-block; border: 2px solid var(--grid); }
+.box-group { margin-bottom: 14px; }
+.box-group h3 { font-weight: 400; font-size: 20px; margin: 0 0 8px; }
+.box-row { display: grid; grid-template-columns: repeat(10, minmax(0, 1fr)); gap: 8px; }
+.box-row .tzg { border-width: 2px; padding: 0; }
+.box-row .tzg.unseen .han { opacity: .18; }
+
+/* overlay + toast */
+.overlay { position: fixed; inset: 0; background: rgba(15, 37, 48, .55); display: grid; place-items: center; z-index: 20; padding: 16px; }
+.panel { background: var(--paper); border-radius: 26px; padding: 22px 24px; width: min(100%, 520px); max-height: 90%; overflow-y: auto; display: flex; flex-direction: column; gap: 16px; }
+.panel h2 { margin: 0; font-weight: 400; font-size: 28px; }
+.panel label { display: flex; flex-direction: column; gap: 6px; font-size: 19px; }
+.panel .inline { flex-direction: row; align-items: center; gap: 10px; }
+.panel input[type=range] { width: 100%; accent-color: var(--leaf); height: 30px; }
+.panel input[type=checkbox] { width: 26px; height: 26px; accent-color: var(--leaf); }
+.panel select { font: inherit; font-size: 16px; padding: 8px; border-radius: 10px; border: 2px solid var(--ghost); background: var(--bg-2); color: var(--ink); max-width: 100%; }
+.panel .note { font-size: 16px; color: var(--ink-soft); margin: 0; line-height: 1.5; }
+.panel .row { display: flex; gap: 12px; flex-wrap: wrap; }
+.toast { position: fixed; left: 50%; bottom: calc(24px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); background: var(--ink); color: var(--bg); padding: 12px 22px; border-radius: 999px; font-size: 20px; z-index: 30; animation: sprout .3s; max-width: 90vw; text-align: center; }
+
+@media (max-width: 760px) {
+  .home-actions { grid-template-columns: 1fr; }
+  .home-actions .btn { min-height: 96px; flex-direction: row; }
+  .learn-card { grid-template-columns: 1fr; gap: 12px; }
+  .options { grid-template-columns: repeat(2, minmax(0, 1fr)); max-width: 440px; }
+  .char-row, .box-row { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+  .mem-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); max-width: 460px; }
+  .bed { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+  .f-hud { flex-wrap: wrap; }
+  .f-hint { order: 3; flex-basis: 100%; font-size: 18px; }
+  .acts { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+  .acts .btn { min-height: 110px; font-size: 20px; }
+  .mem-hint { font-size: 17px; }
+}
+@media (max-height: 700px) and (min-width: 761px) {
+  .options { max-width: 640px; }
+  .prompt { min-height: 140px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
+}
+</style>
+</head>
+<body>
+<div id="app"></div>
+
+<!-- All learner-facing text and character data lives in this JSON block. Add new stages by appending to "stages". -->
+<script type="application/json" id="content">
+{
+  "ui": {
+    "appTitle": "识字小花园",
+    "daily": "今日练习",
+    "dueBadge": "{n} 个字等你复习",
+    "newBadge": "来认识新字吧",
+    "map": "闯关地图",
+    "mapBadge": "一关一关往前走",
+    "box": "字宝箱",
+    "boxBadge": "看看我认识的字",
+    "parent": "家长设置（按住）",
+    "holdHint": "请家长按住 2 秒",
+    "back": "返回",
+    "home": "回家",
+    "levelN": "第{n}关",
+    "learn": "学新字",
+    "listen": "听音找字",
+    "picture": "看图找字",
+    "memory": "翻牌配对",
+    "flowers": "浇花开花",
+    "hear": "听一听",
+    "trace": "描一描",
+    "traceOff": "不描了",
+    "clear": "擦掉",
+    "prev": "上一个",
+    "next": "下一个",
+    "done": "学完啦",
+    "learnDone": "这一组学完啦！",
+    "learnDoneSub": "玩个游戏，把它们记牢吧",
+    "newChars": "认识新字",
+    "playAgain": "再玩一次",
+    "finish": "完成啦！",
+    "earned": "这次得到 {n} 颗星星",
+    "allDone": "今天的复习都做完啦！",
+    "allDoneSub": "去闯关地图玩游戏吧",
+    "locked": "先把上一关的字学会，就能打开啦",
+    "promptListen": "找一找，{w}的{c}",
+    "sayChar": "{c}，{w}的{c}",
+    "thisIs": "这是{w}的{c}",
+    "listenTap": "点小喇叭，再听一遍",
+    "pickPic": "这个图是哪个字？",
+    "memoryHint": "把字和图片配成一对",
+    "memoryPeek": "先看一看，记住它们在哪里！",
+    "flowersHint": "听一听，给对的小芽浇水，它就会开花",
+    "restTitle": "今天学得真棒！",
+    "restSub": "眼睛累啦，休息一下，明天再来吧",
+    "parentMore": "家长按住：再玩 10 分钟",
+    "sessionLen": "每次学习时间",
+    "minutes": "{n} 分钟",
+    "noLimit": "不限时",
+    "gardenEmpty": "每得到 10 颗星星，花园里就会长出新东西哦",
+    "boxSummary": "认识了 {n} 个字，记牢了 {m} 个字",
+    "legendA": "刚认识",
+    "legendB": "有印象",
+    "legendC": "记牢了",
+    "legendD": "超熟练",
+    "settings": "家长设置",
+    "rate": "说话速度",
+    "voice": "中文声音",
+    "test": "试听",
+    "testSentence": "你好，我们一起来认字吧！",
+    "unlockAll": "打开所有关卡",
+    "reset": "清空学习进度",
+    "resetConfirm": "再按一次确认清空",
+    "resetDone": "进度已经清空",
+    "syncCloud": "学习进度保存在您的 claude.ai 账号里，两台电脑都能接着学。",
+    "syncLocal": "学习进度保存在这台设备的浏览器里。",
+    "noVoice": "没有找到中文语音。建议用 Edge 浏览器打开；或在 Windows 设置 → 时间和语言 → 语言和区域 里添加中文（简体）并安装语音包。",
+    "close": "关闭"
+  },
+  "praise": ["太棒了！", "真厉害！", "答对啦！", "你真棒！", "好聪明！", "对啦对啦！"],
+  "retry": ["再试试！", "没关系，再找找", "差一点点！"],
+  "flowers": ["🌷", "🌻", "🌸", "🌼", "🌹", "🌺", "💐"],
+  "bugs": ["🦋", "🐝", "🐞", "🐛"],
+  "garden": ["🌱", "🌷", "🌻", "🌳", "🍄", "🐞", "🌼", "🦋", "🐝", "🌸", "🐸", "🍓", "🐌", "🌵", "🐿️", "🌹"],
+  "stages": [
+    {
+      "name": "第一阶段：100 个常用字",
+      "groups": [
+        { "name": "数一数", "icon": "🔢", "chars": [
+          ["一", "yī", "一个", "🍓"], ["二", "èr", "二十", "🍓🍓"], ["三", "sān", "三天", "🍓🍓🍓"],
+          ["四", "sì", "四个", "🍓🍓🍓🍓"], ["五", "wǔ", "五月", "🍓🍓🍓🍓🍓"], ["六", "liù", "六个", "🍓🍓🍓🍓🍓🍓"],
+          ["七", "qī", "七个", "🍓🍓🍓🍓🍓🍓🍓"], ["八", "bā", "八月", "🍓🍓🍓🍓🍓🍓🍓🍓"], ["九", "jiǔ", "九个", "🍓🍓🍓🍓🍓🍓🍓🍓🍓"],
+          ["十", "shí", "十个", "🍓🍓🍓🍓🍓🍓🍓🍓🍓🍓"] ] },
+        { "name": "大自然", "icon": "⛰️", "chars": [
+          ["日", "rì", "日出", "☀️"], ["月", "yuè", "月亮", "🌙"], ["山", "shān", "大山", "⛰️"],
+          ["水", "shuǐ", "喝水", "💧"], ["火", "huǒ", "火苗", "🔥"], ["木", "mù", "木头", "🪵"],
+          ["土", "tǔ", "泥土", "🟫"], ["石", "shí", "石头", "🪨"], ["田", "tián", "田地", "🌾"],
+          ["天", "tiān", "天空", "🌤️"] ] },
+        { "name": "我的身体", "icon": "🧒", "chars": [
+          ["人", "rén", "大人", "🧍"], ["口", "kǒu", "口水", "👄"], ["手", "shǒu", "小手", "✋"],
+          ["目", "mù", "目光", "👁️"], ["耳", "ěr", "耳朵", "👂"], ["足", "zú", "足球", "🦶"],
+          ["牙", "yá", "牙齿", "🦷"], ["心", "xīn", "开心", "❤️"], ["头", "tóu", "头发", "🧑"],
+          ["鼻", "bí", "鼻子", "👃"] ] },
+        { "name": "动物朋友", "icon": "🐾", "chars": [
+          ["马", "mǎ", "小马", "🐴"], ["牛", "niú", "牛奶", "🐮"], ["羊", "yáng", "小羊", "🐑"],
+          ["鸟", "niǎo", "小鸟", "🐦"], ["鱼", "yú", "金鱼", "🐟"], ["虫", "chóng", "虫子", "🐛"],
+          ["猫", "māo", "小猫", "🐱"], ["狗", "gǒu", "小狗", "🐶"], ["兔", "tù", "兔子", "🐰"],
+          ["猪", "zhū", "小猪", "🐷"] ] },
+        { "name": "大小方向", "icon": "🧭", "chars": [
+          ["大", "dà", "大象", "🐘"], ["小", "xiǎo", "小草", "🐜"], ["上", "shàng", "上山", "⬆️"],
+          ["下", "xià", "下雨", "⬇️"], ["左", "zuǒ", "左手", "⬅️"], ["右", "yòu", "右手", "➡️"],
+          ["中", "zhōng", "中间", "🎯"], ["多", "duō", "很多", "🍎🍎🍎🍎🍎"], ["少", "shǎo", "很少", "🍎"],
+          ["高", "gāo", "高高", "🦒"] ] },
+        { "name": "我的家", "icon": "🏠", "chars": [
+          ["爸", "bà", "爸爸", "👨"], ["妈", "mā", "妈妈", "👩"], ["哥", "gē", "哥哥", "👦"],
+          ["姐", "jiě", "姐姐", "👧"], ["弟", "dì", "弟弟", "🧒"], ["妹", "mèi", "妹妹", "👶"],
+          ["我", "wǒ", "我们", "🙋"], ["你", "nǐ", "你好", "👉"], ["家", "jiā", "回家", "🏠"],
+          ["好", "hǎo", "好人", "👍"] ] },
+        { "name": "天气和植物", "icon": "🌈", "chars": [
+          ["云", "yún", "白云", "☁️"], ["雨", "yǔ", "下雨", "🌧️"], ["风", "fēng", "大风", "🌬️"],
+          ["雪", "xuě", "雪花", "❄️"], ["星", "xīng", "星星", "⭐"], ["花", "huā", "红花", "🌸"],
+          ["草", "cǎo", "小草", "🌿"], ["叶", "yè", "树叶", "🍃"], ["果", "guǒ", "苹果", "🍎"],
+          ["瓜", "guā", "西瓜", "🍉"] ] },
+        { "name": "生活用品", "icon": "🎒", "chars": [
+          ["米", "mǐ", "大米", "🍚"], ["门", "mén", "开门", "🚪"], ["车", "chē", "汽车", "🚗"],
+          ["书", "shū", "看书", "📖"], ["衣", "yī", "衣服", "👕"], ["笔", "bǐ", "铅笔", "✏️"],
+          ["球", "qiú", "皮球", "⚽"], ["伞", "sǎn", "雨伞", "☂️"], ["灯", "dēng", "电灯", "💡"],
+          ["船", "chuán", "小船", "⛵"] ] },
+        { "name": "动起来", "icon": "🏃", "chars": [
+          ["走", "zǒu", "走路", "🚶"], ["跑", "pǎo", "跑步", "🏃"], ["吃", "chī", "吃饭", "😋"],
+          ["看", "kàn", "看见", "👀"], ["说", "shuō", "说话", "💬"], ["飞", "fēi", "飞机", "✈️"],
+          ["坐", "zuò", "坐下", "🪑"], ["哭", "kū", "大哭", "😢"], ["笑", "xiào", "大笑", "😄"],
+          ["睡", "shuì", "睡觉", "😴"] ] },
+        { "name": "颜色和时间", "icon": "🎨", "chars": [
+          ["红", "hóng", "红色", "🔴"], ["黄", "huáng", "黄色", "🟡"], ["蓝", "lán", "蓝色", "🔵"],
+          ["绿", "lǜ", "绿色", "🟢"], ["白", "bái", "白色", "⚪"], ["黑", "hēi", "黑色", "⚫"],
+          ["开", "kāi", "开灯", "🔓"], ["关", "guān", "关门", "🔒"], ["早", "zǎo", "早上", "🌅"],
+          ["晚", "wǎn", "晚上", "🌃"] ] }
+      ]
+    }
+  ]
+}
+</script>
+
+<script>
+(() => {
+  'use strict';
+
+  // ---------- content ----------
+  const DATA = JSON.parse(document.getElementById('content').textContent);
+  const UI = DATA.ui;
+  document.title = UI.appTitle;
+
+  const GROUPS = [];
+  DATA.stages.forEach((stage, si) => stage.groups.forEach((g) => {
+    GROUPS.push({
+      stageIndex: si, stageName: stage.name, name: g.name, icon: g.icon,
+      chars: g.chars.map(([c, py, word, pic]) => ({ c, py, word, pic })),
+    });
+  }));
+  const CHAR = new Map();
+  GROUPS.forEach((g, gi) => g.chars.forEach((x) => { if (!CHAR.has(x.c)) CHAR.set(x.c, { ...x, group: gi }); }));
+  const ALL = [...CHAR.keys()];
+
+  // ---------- helpers ----------
+  const fmt = (tpl, o) => tpl.replace(/\{(\w+)\}/g, (_, k) => (o[k] ?? ''));
+  const pick = (a) => a[Math.floor(Math.random() * a.length)];
+  const shuffle = (arr) => {
+    const a = arr.slice();
+    for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; }
+    return a;
+  };
+  const toneless = (py) => py.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  const SEG = typeof Intl !== 'undefined' && Intl.Segmenter ? new Intl.Segmenter('en', { granularity: 'grapheme' }) : null;
+  const picCount = (pic) => (SEG ? [...SEG.segment(pic)].length : [...pic.replace(/[\uFE0F\u200D]/g, '')].length);
+  const isMany = (pic) => picCount(pic) >= 2;
+  const memPicClass = (pic) => { const n = picCount(pic); return n > 4 ? 'many' : (n > 1 ? 'few' : ''); };
+
+  function h(tag, props, ...kids) {
+    const el = document.createElement(tag);
+    for (const [k, v] of Object.entries(props || {})) {
+      if (k === 'class') el.className = v;
+      else if (k === 'style') el.style.cssText = v;
+      else if (k.startsWith('on') && typeof v === 'function') el.addEventListener(k.slice(2), v);
+      else if (v === true) el.setAttribute(k, '');
+      else if (v !== false && v != null) el.setAttribute(k, v);
+    }
+    for (const kid of kids.flat()) {
+      if (kid == null || kid === false) continue;
+      el.append(kid instanceof Node ? kid : document.createTextNode(String(kid)));
+    }
+    return el;
+  }
+  const emo = (s, cls = '') => h('span', { class: ('emoji ' + cls).trim() }, s);
+  const tzg = (ch, cls = '') => h('div', { class: ('tzg ' + cls).trim() }, h('span', { class: 'han' }, ch));
+
+  function toast(msg) {
+    const t = h('div', { class: 'toast', role: 'status' }, msg);
+    document.body.append(t);
+    setTimeout(() => t.remove(), 2400);
+  }
+
+  // ---------- progress state (spaced repetition) ----------
+  const LS_KEY = 'hanzi-garden-progress-v1';
+  const HOUR = 3600e3, DAY = 24 * HOUR;
+  // Review interval after reaching each level (level 0..5).
+  const INTERVALS = [0, 4 * HOUR, 1 * DAY, 3 * DAY, 7 * DAY, 16 * DAY];
+
+  const defaultState = () => ({ v: 1, stars: 0, chars: {}, settings: { rate: 0.8, voice: '', unlockAll: false, sessionMin: 15 }, updatedAt: 0 });
+  function normalize(s) {
+    const d = defaultState();
+    const out = Object.assign(d, s || {});
+    out.settings = Object.assign(defaultState().settings, (s && s.settings) || {});
+    out.chars = out.chars || {};
+    return out;
+  }
+  function loadLocal() {
+    try { const raw = localStorage.getItem(LS_KEY); if (raw) return normalize(JSON.parse(raw)); } catch (e) { /* storage unavailable */ }
+    return defaultState();
+  }
+  let state = loadLocal();
+
+  let remoteRef = null, syncMode = 'local', saveTimer = null, writing = false, pendingWrite = false;
+  function writeLocal() { try { localStorage.setItem(LS_KEY, JSON.stringify(state)); } catch (e) { /* ignore */ } }
+  function save() {
+    state.updatedAt = Date.now();
+    writeLocal();
+    if (remoteRef) { clearTimeout(saveTimer); saveTimer = setTimeout(pushRemote, 1500); }
+  }
+  async function pushRemote() {
+    if (!remoteRef) return;
+    if (writing) { pendingWrite = true; return; }
+    writing = true;
+    try { await remoteRef.set(JSON.parse(JSON.stringify(state))); } catch (e) { console.warn('sync failed', e); }
+    writing = false;
+    if (pendingWrite) { pendingWrite = false; pushRemote(); }
+  }
+  async function initRemote() {
+    if (!window.claude || typeof window.claude.use !== 'function') return;
+    try {
+      const [db, user] = await Promise.all([window.claude.use('db'), window.claude.use('user')]);
+      if (!db || !user) return;
+      const uid = await user.id();
+      if (!uid) return;
+      const ref = db.doc('data/users/' + uid + '/progress');
+      const snap = await ref.get();
+      remoteRef = ref;
+      syncMode = 'cloud';
+      const remote = snap.exists ? snap.data() : null;
+      if (remote && (remote.updatedAt || 0) > (state.updatedAt || 0)) {
+        state = normalize(JSON.parse(JSON.stringify(remote)));
+        writeLocal();
+        pickVoice();
+        if (currentScreen === renderHome) show(renderHome);
+      } else if (!remote || (state.updatedAt || 0) > (remote.updatedAt || 0)) {
+        pushRemote();
+      }
+    } catch (e) { console.warn('cloud progress unavailable', e); }
+  }
+
+  const EMPTY = { l: 0, d: 0, n: false, r: 0, w: 0 };
+  const peek = (c) => state.chars[c] || EMPTY;
+  const rec = (c) => state.chars[c] || (state.chars[c] = { ...EMPTY });
+  function introduce(c) {
+    const r = rec(c);
+    if (!r.n) { r.n = true; r.l = 0; r.d = Date.now(); save(); }
+  }
+  function grade(c, ok) {
+    const r = rec(c), now = Date.now();
+    r.n = true;
+    if (ok) {
+      r.r++;
+      // Only a correct answer on a due item moves it up; practice between reviews does not skip the spacing.
+      if (r.d <= now) { r.l = Math.min(5, r.l + 1); r.d = now + INTERVALS[r.l]; }
+    } else {
+      r.w++;
+      r.l = Math.max(0, r.l - 2);
+      r.d = now;
+    }
+    save();
+  }
+  function lvClass(c) {
+    const r = peek(c);
+    if (!r.n) return 'lv-none';
+    if (r.l <= 1) return 'lv-a';
+    if (r.l <= 3) return 'lv-b';
+    if (r.l === 4) return 'lv-c';
+    return 'lv-d';
+  }
+  const groupPassed = (gi) => GROUPS[gi].chars.filter((x) => peek(x.c).l >= 1).length;
+  const unlocked = (gi) => state.settings.unlockAll || gi === 0 || groupPassed(gi - 1) >= 8;
+  const dueList = () => { const now = Date.now(); return ALL.filter((c) => peek(c).n && peek(c).d <= now); };
+
+  // ---------- speech ----------
+  let zhVoices = [], zhVoice = null;
+  function loadVoices() {
+    if (!('speechSynthesis' in window)) return;
+    zhVoices = speechSynthesis.getVoices().filter((v) => /^(zh[-_](CN|Hans)|cmn)/i.test(v.lang));
+    pickVoice();
+  }
+  function pickVoice() {
+    const pref = state.settings.voice;
+    zhVoice = zhVoices.find((v) => v.name === pref)
+      || zhVoices.find((v) => /xiaoxiao|xiaoyi|natural|online/i.test(v.name))
+      || zhVoices.find((v) => /huihui|yaoyao|google/i.test(v.name))
+      || zhVoices[0] || null;
+  }
+  if ('speechSynthesis' in window) {
+    loadVoices();
+    speechSynthesis.addEventListener('voiceschanged', loadVoices);
+  }
+  let speakTimer = null;
+  function speak(text) {
+    if (!('speechSynthesis' in window)) return;
+    clearTimeout(speakTimer);
+    speechSynthesis.cancel();
+    const u = new SpeechSynthesisUtterance(text);
+    u.lang = 'zh-CN';
+    if (zhVoice) u.voice = zhVoice;
+    u.rate = state.settings.rate;
+    u.pitch = 1.1;
+    speakTimer = setTimeout(() => speechSynthesis.speak(u), 60);
+  }
+  const wordOf = (c) => CHAR.get(c).word;
+  const sayChar = (c) => speak(fmt(UI.sayChar, { c, w: wordOf(c) }));
+
+  // ---------- sound effects ----------
+  let actx = null;
+  function tones(freqs, dur, type, gap, vol) {
+    try {
+      actx = actx || new (window.AudioContext || window.webkitAudioContext)();
+      if (actx.state === 'suspended') actx.resume();
+      const t0 = actx.currentTime;
+      freqs.forEach((f, i) => {
+        const o = actx.createOscillator(), g = actx.createGain(), s = t0 + i * gap;
+        o.type = type; o.frequency.value = f;
+        g.gain.setValueAtTime(0.0001, s);
+        g.gain.exponentialRampToValueAtTime(vol, s + 0.02);
+        g.gain.exponentialRampToValueAtTime(0.0001, s + dur);
+        o.connect(g).connect(actx.destination);
+        o.start(s); o.stop(s + dur + 0.03);
+      });
+    } catch (e) { /* audio unavailable */ }
+  }
+  const sfx = {
+    good: () => tones([660, 880, 1175], 0.16, 'triangle', 0.09, 0.18),
+    bad: () => tones([240, 190], 0.2, 'square', 0.12, 0.06),
+    pop: () => tones([950], 0.08, 'triangle', 0, 0.22),
+    flip: () => tones([520], 0.06, 'sine', 0, 0.1),
+  };
+
+  // ---------- session timer (counts only while the page is visible) ----------
+  const SESSION_KEY = 'hanzi-garden-session-v1';
+  const SESSION_GAP = 30 * 60e3; // a pause longer than this starts a new session
+  function loadSession() {
+    try {
+      const s = JSON.parse(localStorage.getItem(SESSION_KEY));
+      if (s && Date.now() - s.last < SESSION_GAP) return s;
+    } catch (e) { /* ignore */ }
+    return { used: 0, last: Date.now() };
+  }
+  const session = loadSession();
+  let tickLast = Date.now(), tickCount = 0;
+  setInterval(() => {
+    const now = Date.now();
+    if (now - session.last > SESSION_GAP) session.used = 0;
+    if (document.visibilityState === 'visible') session.used += Math.min(now - tickLast, 5000);
+    tickLast = now; session.last = now;
+    if (++tickCount % 5 === 0) { try { localStorage.setItem(SESSION_KEY, JSON.stringify(session)); } catch (e) { /* ignore */ } }
+  }, 1000);
+  const limitMs = () => (state.settings.sessionMin || 0) * 60e3;
+  const timeUp = () => limitMs() > 0 && session.used >= limitMs();
+  function extendSession() {
+    session.used = Math.max(0, limitMs() - 10 * 60e3);
+    try { localStorage.setItem(SESSION_KEY, JSON.stringify(session)); } catch (e) { /* ignore */ }
+  }
+
+  // ---------- audio unlock (iOS Safari only allows sound after a user gesture) ----------
+  let audioUnlocked = false;
+  function unlockAudio() {
+    if (audioUnlocked) return;
+    audioUnlocked = true;
+    try {
+      if ('speechSynthesis' in window) {
+        const u = new SpeechSynthesisUtterance(' ');
+        u.volume = 0;
+        speechSynthesis.speak(u);
+      }
+    } catch (e) { /* ignore */ }
+    try {
+      actx = actx || new (window.AudioContext || window.webkitAudioContext)();
+      if (actx.state === 'suspended') actx.resume();
+      const buf = actx.createBuffer(1, 1, 22050), src = actx.createBufferSource();
+      src.buffer = buf; src.connect(actx.destination); src.start(0);
+    } catch (e) { /* ignore */ }
+    ['touchend', 'pointerup', 'click', 'keydown'].forEach((ev) => document.removeEventListener(ev, unlockAudio, true));
+  }
+  ['touchend', 'pointerup', 'click', 'keydown'].forEach((ev) => document.addEventListener(ev, unlockAudio, true));
+
+  // ---------- router ----------
+  const app = document.getElementById('app');
+  let cleanup = null, currentScreen = null;
+  function show(fn, ...args) {
+    // When the time limit is reached, the current activity is allowed to finish; the next screen becomes the rest screen.
+    if (fn !== renderRest && timeUp()) { fn = renderRest; args = []; }
+    if (cleanup) { try { cleanup(); } catch (e) { /* ignore */ } cleanup = null; }
+    clearTimeout(speakTimer);
+    if ('speechSynthesis' in window) speechSynthesis.cancel();
+    app.replaceChildren();
+    currentScreen = fn;
+    fn(...args);
+  }
+  const goHome = () => show(renderHome);
+
+  function topbar(title, onBack) {
+    return h('header', { class: 'top' },
+      onBack ? h('button', { class: 'btn small ghost', onclick: onBack }, emo('⬅️'), UI.back) : h('span'),
+      h('h1', { class: 'top-title' }, title),
+      h('div', { class: 'stars', id: 'starCount' }, emo('⭐'), ' ', h('b', {}, state.stars)));
+  }
+  function addStar(fromEl) {
+    state.stars += 1;
+    save();
+    const counter = document.getElementById('starCount');
+    const shown = state.stars;
+    const land = () => {
+      const b = counter && counter.isConnected ? counter.querySelector('b') : null;
+      if (!b) return;
+      b.textContent = Math.max(Number(b.textContent) || 0, shown);
+      counter.classList.remove('bump'); void counter.offsetWidth; counter.classList.add('bump');
+    };
+    if (!fromEl || !counter || REDUCED) { land(); return; }
+    const a = center(fromEl), z = center(counter);
+    const star = h('span', { class: 'fx', style: 'font-size:54px' }, '⭐');
+    document.body.append(star);
+    const midX = (a.x + z.x) / 2, midY = Math.min(a.y, z.y) - 120;
+    const anim = star.animate([
+      { transform: `translate(${a.x}px, ${a.y}px) translate(-50%, -50%) scale(.4)` },
+      { transform: `translate(${a.x}px, ${a.y - 40}px) translate(-50%, -50%) scale(1.4) rotate(-20deg)`, offset: 0.2 },
+      { transform: `translate(${midX}px, ${midY}px) translate(-50%, -50%) scale(1.1) rotate(160deg)`, offset: 0.6 },
+      { transform: `translate(${z.x}px, ${z.y}px) translate(-50%, -50%) scale(.5) rotate(360deg)` },
+    ], { duration: 950, easing: 'ease-in-out' });
+    anim.onfinish = () => { star.remove(); land(); };
+  }
+
+  // ---------- emoji particle effects (used instead of text feedback) ----------
+  const REDUCED = !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+  const CHEER = ['⭐', '🌟', '✨', '🎉', '🎊', '💖', '🌈', '🍭'];
+  function center(el) { const r = el.getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 }; }
+  function fly(glyph, size, frames, duration, easing) {
+    const p = h('span', { class: 'fx', style: `font-size:${size}px` }, glyph);
+    document.body.append(p);
+    p.animate(frames, { duration, easing }).onfinish = () => p.remove();
+  }
+  const at = (x, y, extra = '') => `translate(${x}px, ${y}px) translate(-50%, -50%) ${extra}`;
+  function burst(el, glyphs, n) {
+    if (REDUCED) return;
+    const c = center(el);
+    for (let i = 0; i < n; i++) {
+      const ang = Math.random() * Math.PI * 2, dist = 90 + Math.random() * 140;
+      const dx = Math.cos(ang) * dist, dy = Math.sin(ang) * dist - 50;
+      const sc = 0.6 + Math.random() * 0.9, rot = (Math.random() - 0.5) * 360;
+      fly(pick(glyphs), 36, [
+        { transform: at(c.x, c.y, 'scale(.2)'), opacity: 1 },
+        { transform: at(c.x + dx, c.y + dy, `scale(${sc}) rotate(${rot}deg)`), opacity: 1, offset: 0.65 },
+        { transform: at(c.x + dx, c.y + dy + 70, `scale(${sc * 0.7}) rotate(${rot * 1.4}deg)`), opacity: 0 },
+      ], 1000 + Math.random() * 400, 'cubic-bezier(.2, .8, .3, 1)');
+    }
+  }
+  function oops(el) {
+    if (REDUCED) return;
+    const c = center(el), top = el.getBoundingClientRect().top + 10;
+    fly(pick(['🙈', '🤭', '🐢', '🫣']), 64, [
+      { transform: at(c.x, top, 'scale(.2)'), opacity: 0 },
+      { transform: at(c.x, top - 50, 'scale(1.2)'), opacity: 1, offset: 0.25 },
+      { transform: at(c.x - 12, top - 60, 'rotate(-12deg)'), opacity: 1, offset: 0.45 },
+      { transform: at(c.x + 12, top - 70, 'rotate(12deg)'), opacity: 1, offset: 0.65 },
+      { transform: at(c.x, top - 110, 'scale(.8)'), opacity: 0 },
+    ], 1400, 'ease-out');
+    for (let i = 0; i < 5; i++) {
+      const dx = (i - 2) * 30;
+      fly('💨', 26, [
+        { transform: at(c.x, c.y, 'scale(.3)'), opacity: 0.9 },
+        { transform: at(c.x + dx, c.y + 50, 'scale(1)'), opacity: 0 },
+      ], 700, 'ease-out');
+    }
+  }
+
+  // ---------- home ----------
+  function renderHome() {
+    const plants = DATA.garden;
+    const count = Math.floor(state.stars / 10);
+    const start = Math.max(0, count - 36);
+    const garden = h('div', { class: 'garden', 'aria-label': 'garden' },
+      count === 0
+        ? h('p', { class: 'garden-empty' }, UI.gardenEmpty)
+        : Array.from({ length: count - start }, (_, k) => {
+          const i = start + k;
+          return h('span', { class: 'plant', style: `animation-delay:${k * 35}ms` }, plants[i % plants.length]);
+        }));
+
+    const due = dueList().length;
+    const actions = h('div', { class: 'home-actions' },
+      h('button', { class: 'btn sun', onclick: startDaily },
+        emo('☀️'), h('span', {}, UI.daily), h('span', { class: 'badge' }, due ? fmt(UI.dueBadge, { n: due }) : UI.newBadge)),
+      h('button', { class: 'btn leaf', onclick: () => show(renderMap) },
+        emo('🗺️'), h('span', {}, UI.map), h('span', { class: 'badge' }, UI.mapBadge)),
+      h('button', { class: 'btn berry', onclick: () => show(renderBox) },
+        emo('🧰'), h('span', {}, UI.box), h('span', { class: 'badge' }, UI.boxBadge)));
+
+    app.append(
+      topbar('', null),
+      h('div', { class: 'screen' },
+        h('div', { class: 'home' },
+          h('div', { class: 'title-tiles', role: 'heading', 'aria-level': '1', 'aria-label': UI.appTitle },
+            [...UI.appTitle].map((ch) => tzg(ch))),
+          garden,
+          actions,
+          h('div', { class: 'home-foot' }, holdButton(UI.parent, openSettings)))));
+  }
+
+  function holdButton(label, onDone) {
+    let t = null;
+    const b = h('button', { class: 'btn small ghost parent' }, label);
+    const stop = () => { clearTimeout(t); b.classList.remove('holding'); };
+    b.addEventListener('pointerdown', (e) => {
+      e.preventDefault();
+      b.classList.add('holding');
+      t = setTimeout(() => { stop(); onDone(); }, 2000);
+    });
+    ['pointerup', 'pointerleave', 'pointercancel'].forEach((ev) => b.addEventListener(ev, stop));
+    b.addEventListener('click', () => { if (!b.classList.contains('holding')) toast(UI.holdHint); });
+    b.addEventListener('keydown', (e) => { if (e.key === 'Enter' && e.shiftKey) onDone(); });
+    return b;
+  }
+
+  // ---------- map ----------
+  function renderMap() {
+    const screen = h('div', { class: 'screen' });
+    let lastStage = -1, grid = null;
+    GROUPS.forEach((g, gi) => {
+      if (g.stageIndex !== lastStage) {
+        lastStage = g.stageIndex;
+        grid = h('div', { class: 'groups' });
+        screen.append(h('h2', { class: 'stage-h' }, g.stageName), grid);
+      }
+      const open = unlocked(gi);
+      grid.append(h('button', {
+        class: 'gcard' + (open ? '' : ' locked'),
+        onclick: () => { if (open) show(renderGroup, gi); else { sfx.bad(); toast(UI.locked); } },
+      },
+      h('div', { class: 'gcard-head' },
+        h('span', { class: 'num' }, fmt(UI.levelN, { n: gi + 1 })), emo(g.icon), h('span', {}, g.name),
+        open ? null : h('span', { class: 'lock' }, '🔒')),
+      h('div', { class: 'minis' }, g.chars.map((x) => h('span', { class: 'mini ' + lvClass(x.c) }, x.c)))));
+    });
+    app.append(topbar(UI.map, goHome), screen);
+  }
+
+  // ---------- group menu ----------
+  function renderGroup(gi) {
+    const g = GROUPS[gi];
+    const chars = g.chars.map((x) => x.c);
+    const back = () => show(renderGroup, gi);
+    const acts = [
+      ['📖', UI.learn, 'sky', () => show(renderLearn, chars, { title: g.name, onBack: back, onDone: () => show(renderLearnDone, gi) })],
+      ['👂', UI.listen, 'sun', () => show(renderQuiz, { items: shuffle(chars), mode: 'listen', pool: chars, title: UI.listen, onBack: back })],
+      ['🖼️', UI.picture, 'leaf', () => show(renderQuiz, { items: shuffle(chars), mode: 'picture', pool: chars, title: UI.picture, onBack: back })],
+      ['🃏', UI.memory, 'berry', () => show(renderMemory, gi)],
+      ['🌷', UI.flowers, 'sky', () => show(renderFlowers, gi)],
+    ];
+    app.append(
+      topbar(fmt(UI.levelN, { n: gi + 1 }) + ' ' + g.name, () => show(renderMap)),
+      h('div', { class: 'screen' },
+        h('div', { class: 'char-row' }, g.chars.map((x) => {
+          const t = tzg(x.c, lvClass(x.c));
+          t.setAttribute('role', 'button');
+          t.addEventListener('click', () => sayChar(x.c));
+          return t;
+        })),
+        h('div', { class: 'acts' }, acts.map(([icon, label, color, fn]) =>
+          h('button', { class: 'btn ' + color, onclick: fn }, emo(icon), h('span', {}, label))))));
+  }
+
+  function renderLearnDone(gi) {
+    const g = GROUPS[gi];
+    const chars = g.chars.map((x) => x.c);
+    const back = () => show(renderGroup, gi);
+    app.append(topbar(g.name, back), h('div', { class: 'screen' }, h('div', { class: 'end' },
+      emo('🎉', 'hero'), h('h2', {}, UI.learnDone), h('p', {}, UI.learnDoneSub),
+      h('div', { class: 'row' },
+        h('button', { class: 'btn sun', onclick: () => show(renderQuiz, { items: shuffle(chars), mode: 'listen', pool: chars, title: UI.listen, onBack: back }) }, emo('👂'), UI.listen),
+        h('button', { class: 'btn berry', onclick: () => show(renderMemory, gi) }, emo('🃏'), UI.memory),
+        h('button', { class: 'btn sky', onclick: () => show(renderFlowers, gi) }, emo('🌷'), UI.flowers)))));
+    sfx.good();
+  }
+
+  // ---------- learn cards with tracing ----------
+  function traceLayer(box) {
+    const cv = h('canvas', {});
+    box.append(cv);
+    const ctx = cv.getContext('2d');
+    let w = 0, hgt = 0;
+    function fit() {
+      const r = box.getBoundingClientRect(), dpr = window.devicePixelRatio || 1;
+      w = r.width; hgt = r.height;
+      cv.width = Math.round(w * dpr); cv.height = Math.round(hgt * dpr);
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+      ctx.lineWidth = Math.max(10, w * 0.055);
+      ctx.strokeStyle = ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--trace').trim() || '#EF5B6B';
+    }
+    requestAnimationFrame(fit);
+    const ro = new ResizeObserver(fit); ro.observe(box);
+    let drawing = false, last = null;
+    const pos = (e) => { const r = cv.getBoundingClientRect(); return { x: e.clientX - r.left, y: e.clientY - r.top }; };
+    cv.addEventListener('pointerdown', (e) => {
+      drawing = true; cv.setPointerCapture(e.pointerId); last = pos(e);
+      ctx.beginPath(); ctx.arc(last.x, last.y, ctx.lineWidth / 2, 0, Math.PI * 2); ctx.fill();
+    });
+    cv.addEventListener('pointermove', (e) => {
+      if (!drawing) return;
+      const p = pos(e);
+      ctx.beginPath(); ctx.moveTo(last.x, last.y); ctx.lineTo(p.x, p.y); ctx.stroke();
+      last = p;
+    });
+    const end = () => { drawing = false; };
+    cv.addEventListener('pointerup', end); cv.addEventListener('pointercancel', end);
+    return { clear: () => ctx.clearRect(0, 0, w, hgt), dispose: () => ro.disconnect() };
+  }
+
+  function wordNode(word, c) {
+    return h('div', { class: 'word' }, [...word].map((ch) => (ch === c ? h('span', { class: 'hl' }, ch) : ch)));
+  }
+
+  function renderLearn(list, opts) {
+    let i = 0, tracing = false, layer = null;
+    const body = h('div', { class: 'screen' });
+    app.append(topbar(opts.title, opts.onBack), body);
+
+    function draw() {
+      if (layer) layer.dispose();
+      const x = CHAR.get(list[i]);
+      introduce(x.c);
+      tracing = false;
+      const box = h('div', { class: 'learn-box' }, tzg(x.c));
+      box.firstChild.addEventListener('click', () => { if (!tracing) sayChar(x.c); });
+      layer = traceLayer(box);
+      const traceBtn = h('button', { class: 'btn small sky' }, emo('✏️'), UI.trace);
+      const clearBtn = h('button', { class: 'btn small ghost', onclick: () => layer.clear() }, emo('🧽'), UI.clear);
+      traceBtn.addEventListener('click', () => {
+        tracing = !tracing;
+        box.classList.toggle('tracing', tracing);
+        traceBtn.lastChild.textContent = tracing ? UI.traceOff : UI.trace;
+        if (!tracing) layer.clear();
+      });
+      const last = i === list.length - 1;
+      body.replaceChildren(
+        h('div', { class: 'learn-card' },
+          h('div', { class: 'learn-info' },
+            emo(x.pic, 'learn-pic' + (isMany(x.pic) ? ' many' : '')),
+            h('div', { class: 'pinyin' }, x.py),
+            wordNode(x.word, x.c),
+            h('button', { class: 'btn sun', onclick: () => sayChar(x.c) }, emo('🔊'), UI.hear)),
+          h('div', {},
+            box,
+            h('div', { class: 'learn-tools' }, traceBtn, clearBtn))),
+        h('div', { class: 'learn-nav' },
+          h('button', { class: 'btn small ghost', disabled: i === 0, onclick: () => { i--; draw(); } }, emo('⬅️'), UI.prev),
+          h('div', { class: 'dots' }, list.map((_, k) => h('span', { class: k === i ? 'cur' : (k < i ? 'on' : '') }))),
+          h('button', { class: 'btn ' + (last ? 'leaf' : 'sky'), onclick: () => { if (last) opts.onDone(); else { i++; draw(); } } },
+            last ? UI.done : UI.next, emo(last ? '🎉' : '➡️'))));
+      setTimeout(() => sayChar(x.c), 250);
+    }
+    draw();
+    cleanup = () => { if (layer) layer.dispose(); };
+  }
+
+  // ---------- multiple-choice quiz (listen / picture / mixed) ----------
+  function distractors(c, pool, n) {
+    const x = CHAR.get(c), base = toneless(x.py);
+    const ok = (o) => o !== c && toneless(CHAR.get(o).py) !== base && CHAR.get(o).pic !== x.pic;
+    let cand = shuffle(pool.filter(ok));
+    if (cand.length < n) cand = cand.concat(shuffle(ALL.filter((o) => ok(o) && !cand.includes(o))));
+    return cand.slice(0, n);
+  }
+
+  function renderQuiz(cfg) {
+    const queue = cfg.items.map((c) => ({ c, m: cfg.mode === 'mixed' ? pick(['listen', 'picture']) : cfg.mode, retried: false }));
+    let done = 0, earned = 0;
+    const timers = [];
+    const later = (fn, ms) => timers.push(setTimeout(fn, ms));
+    const barFill = h('i', { style: 'width:0%' });
+    const prompt = h('div', { class: 'prompt' });
+    const options = h('div', { class: 'options' });
+    app.append(topbar(cfg.title, cfg.onBack), h('div', { class: 'screen' }, h('div', { class: 'bar' }, barFill), prompt, options));
+    cleanup = () => timers.forEach(clearTimeout);
+
+    function next() {
+      barFill.style.width = Math.round((done / (done + queue.length)) * 100) + '%';
+      if (!queue.length) {
+        show(renderEnd, { earned, onAgain: cfg.onAgain || (() => show(renderQuiz, { ...cfg, items: shuffle(cfg.items) })), onBack: cfg.onBack });
+        return;
+      }
+      round(queue.shift());
+    }
+    function round(it) {
+      const x = CHAR.get(it.c);
+      const opts = shuffle([it.c, ...distractors(it.c, cfg.pool, 3)]);
+      let wrong = 0, locked = false;
+      const promptText = fmt(UI.promptListen, { c: it.c, w: x.word });
+      if (it.m === 'listen') {
+        prompt.replaceChildren(
+          h('button', { class: 'speaker', 'aria-label': UI.hear, onclick: () => speak(promptText) }, emo('🔊')),
+          h('div', { class: 'hint' }, UI.listenTap));
+        later(() => speak(promptText), 350);
+      } else {
+        prompt.replaceChildren(emo(x.pic, 'big-pic' + (isMany(x.pic) ? ' many' : '')), h('div', { class: 'hint' }, UI.pickPic));
+      }
+      const tiles = opts.map((o) => {
+        const b = h('button', { class: 'opt', 'aria-label': o }, tzg(o));
+        b.addEventListener('click', () => {
+          if (locked || b.disabled) return;
+          if (o === it.c) {
+            locked = true;
+            b.classList.add('right');
+            sfx.good();
+            burst(b, CHEER, 16);
+            if (wrong === 0) { grade(it.c, true); addStar(b); earned++; }
+            sayChar(it.c);
+            done++;
+            later(next, 1700);
+          } else {
+            wrong++;
+            b.classList.add('wrong'); b.disabled = true;
+            sfx.bad();
+            oops(b);
+            speak(fmt(UI.thisIs, { c: o, w: wordOf(o) }));
+            if (wrong === 1) {
+              grade(it.c, false);
+              if (!it.retried) { it.retried = true; queue.splice(Math.min(2, queue.length), 0, { c: it.c, m: it.m, retried: true }); }
+            }
+            if (wrong >= 2) tiles.find((t) => t.getAttribute('aria-label') === it.c).classList.add('hint');
+          }
+        });
+        return b;
+      });
+      options.replaceChildren(...tiles);
+    }
+    next();
+  }
+
+  function renderEnd({ earned, onAgain, onBack }) {
+    sfx.good();
+    app.append(topbar(UI.finish, onBack), h('div', { class: 'screen' }, h('div', { class: 'end' },
+      emo('🏆', 'hero'),
+      h('h2', {}, UI.finish),
+      h('p', {}, fmt(UI.earned, { n: earned })),
+      h('div', { class: 'row' },
+        h('button', { class: 'btn sun', onclick: onAgain }, emo('🔁'), UI.playAgain),
+        h('button', { class: 'btn leaf', onclick: goHome }, emo('🏠'), UI.home)))));
+    speak(UI.finish);
+  }
+
+  // ---------- daily practice ----------
+  function startDaily() {
+    const now = Date.now();
+    const due = ALL.filter((c) => peek(c).n && peek(c).d <= now)
+      .sort((a, b) => peek(a).l - peek(b).l || peek(a).d - peek(b).d)
+      .slice(0, 10);
+    const fresh = [];
+    if (due.length < 8) {
+      const need = Math.min(3, 10 - due.length);
+      for (let gi = 0; gi < GROUPS.length && fresh.length < need; gi++) {
+        if (!unlocked(gi)) break;
+        for (const x of GROUPS[gi].chars) {
+          if (fresh.length >= need) break;
+          if (!peek(x.c).n) fresh.push(x.c);
+        }
+      }
+    }
+    if (!due.length && !fresh.length) {
+      show(() => {
+        app.append(topbar(UI.daily, goHome), h('div', { class: 'screen' }, h('div', { class: 'end' },
+          emo('🌈', 'hero'), h('h2', {}, UI.allDone), h('p', {}, UI.allDoneSub),
+          h('div', { class: 'row' }, h('button', { class: 'btn leaf', onclick: () => show(renderMap) }, emo('🗺️'), UI.map)))));
+        speak(UI.allDone);
+      });
+      return;
+    }
+    const known = ALL.filter((c) => peek(c).n);
+    let pool = [...new Set([...known, ...fresh])];
+    if (pool.length < 6) pool = GROUPS.filter((_, gi) => unlocked(gi)).flatMap((g) => g.chars.map((x) => x.c));
+    const items = shuffle([...due, ...fresh]).concat(shuffle(fresh));
+    const runQuiz = () => show(renderQuiz, { items, mode: 'mixed', pool, title: UI.daily, onBack: goHome, onAgain: startDaily });
+    if (fresh.length) show(renderLearn, fresh, { title: UI.newChars, onBack: goHome, onDone: runQuiz });
+    else runQuiz();
+  }
+
+  // ---------- memory match: look first, then find the pairs ----------
+  // Round 1 uses 4 pairs, round 2 the remaining 6 characters of the group.
+  // Every round opens with a timed look at all cards, so matching is about memory, not luck.
+  function renderMemory(gi, opts = {}) {
+    const g = GROUPS[gi];
+    const back = () => show(renderGroup, gi);
+    const SIZES = [4, 6];
+    const PEEK_MS = [4000, 6000];
+    const round = opts.round || 0;
+    const order = opts.order || shuffle(g.chars.map((x) => x.c));
+    let earned = opts.earned || 0;
+    const startAt = SIZES.slice(0, round).reduce((a, b) => a + b, 0);
+    let chosen = order.slice(startAt, startAt + SIZES[round]);
+    if (chosen.length < 2) chosen = order.slice(0, SIZES[round]);
+    const cards = shuffle(chosen.flatMap((c) => [{ c, kind: 'han' }, { c, kind: 'pic' }]));
+    let open = [], matched = 0, busy = true, peeks = 2;
+    const timers = [];
+    const later = (fn, ms) => timers.push(setTimeout(fn, ms));
+    cleanup = () => timers.forEach(clearTimeout);
+
+    const grid = h('div', { class: 'mem-grid' });
+    cards.forEach((card) => {
+      const x = CHAR.get(card.c);
+      const front = card.kind === 'han' ? h('span', { class: 'han' }, x.c) : emo(x.pic, memPicClass(x.pic));
+      const el = h('button', { class: 'mcard flipped' },
+        h('div', { class: 'inner' }, h('div', { class: 'face back' }, '?'), h('div', { class: 'face front' }, front)));
+      card.el = el;
+      el.addEventListener('click', () => flip(card, x));
+      grid.append(el);
+    });
+
+    const timeFill = h('i', { style: 'width:100%' });
+    const peekBtn = h('button', { class: 'btn small sun', disabled: true }, emo('🔍'), h('b', {}, '×' + peeks));
+    peekBtn.addEventListener('click', peekAll);
+    const roundDots = h('div', { class: 'dots' }, SIZES.map((_, k) => h('span', { class: k === round ? 'cur' : (k < round ? 'on' : '') })));
+    const hint = h('div', { class: 'mem-hint' }, UI.memoryPeek);
+
+    app.append(topbar(UI.memory, back), h('div', { class: 'screen' },
+      h('div', { class: 'mem-top' }, roundDots, hint, peekBtn),
+      h('div', { class: 'bar mem-bar' }, timeFill),
+      grid));
+
+    // Opening look: all cards face up while the bar drains.
+    speak(UI.memoryPeek);
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      timeFill.style.transition = `width ${PEEK_MS[round]}ms linear`;
+      timeFill.style.width = '0%';
+    }));
+    later(() => {
+      cards.forEach((c) => c.el.classList.remove('flipped'));
+      sfx.flip();
+      hint.textContent = UI.memoryHint;
+      busy = false;
+      peekBtn.disabled = false;
+    }, PEEK_MS[round]);
+
+    function peekAll() {
+      if (busy || peeks <= 0) return;
+      peeks--;
+      peekBtn.lastChild.textContent = '×' + peeks;
+      if (peeks === 0) peekBtn.disabled = true;
+      busy = true;
+      const hidden = cards.filter((c) => !c.el.classList.contains('flipped') && !c.el.classList.contains('matched'));
+      hidden.forEach((c) => c.el.classList.add('flipped'));
+      sfx.flip();
+      later(() => { hidden.forEach((c) => c.el.classList.remove('flipped')); busy = false; }, 1600);
+    }
+
+    function flip(card, x) {
+      const el = card.el;
+      if (busy || el.classList.contains('flipped') || el.classList.contains('matched')) return;
+      sfx.flip();
+      el.classList.add('flipped');
+      if (card.kind === 'han') speak(x.c);
+      open.push(card);
+      if (open.length < 2) return;
+      busy = true;
+      const [a, b] = open;
+      open = [];
+      if (a.c === b.c) {
+        later(() => {
+          a.el.classList.add('matched'); b.el.classList.add('matched');
+          burst(a.el, CHEER, 8); burst(b.el, CHEER, 8);
+          sfx.good(); sayChar(a.c);
+          grade(a.c, true); addStar(b.el); earned++;
+          matched++; busy = false;
+          if (matched === chosen.length) {
+            const lastRound = round >= SIZES.length - 1;
+            later(() => {
+              if (lastRound) show(renderEnd, { earned, onAgain: () => show(renderMemory, gi), onBack: back });
+              else show(renderMemory, gi, { round: round + 1, order, earned });
+            }, 1700);
+          }
+        }, 450);
+      } else {
+        later(() => {
+          oops(b.el);
+          a.el.classList.remove('flipped'); b.el.classList.remove('flipped');
+          busy = false;
+        }, 1000);
+      }
+    }
+  }
+
+  // ---------- flower garden: tap the right sprout to make it bloom ----------
+  function renderFlowers(gi) {
+    const g = GROUPS[gi];
+    const back = () => show(renderGroup, gi);
+    const chosen = shuffle(g.chars.map((x) => x.c)).slice(0, 8);
+    const order = shuffle(chosen);
+    let idx = 0, missed = false, wrongs = 0, busy = false, earned = 0;
+    const timers = [];
+    const later = (fn, ms) => timers.push(setTimeout(fn, ms));
+    cleanup = () => timers.forEach(clearTimeout);
+
+    const target = () => order[idx];
+    const promptText = () => fmt(UI.promptListen, { c: target(), w: wordOf(target()) });
+    const scoreEl = h('div', { class: 'f-score', 'aria-live': 'polite' });
+    const renderScore = () => { scoreEl.textContent = '🌷'.repeat(idx) + '🌱'.repeat(order.length - idx); };
+    renderScore();
+
+    const plots = new Map();
+    const bed = h('div', { class: 'bed' }, chosen.map((c) => {
+      const sprout = h('span', { class: 'sprout' }, '🌱');
+      const el = h('button', { class: 'plot', 'aria-label': c }, sprout, h('span', { class: 'sign' }, c), h('span', { class: 'soil' }));
+      const plot = { c, el, sprout, bloomed: false };
+      plots.set(c, plot);
+      el.addEventListener('click', () => tap(plot));
+      return el;
+    }));
+
+    app.append(
+      topbar(UI.flowers, back),
+      h('div', { class: 'screen' },
+        h('div', { class: 'f-hud' },
+          h('button', { class: 'speaker small', 'aria-label': UI.hear, onclick: () => speak(promptText()) }, emo('🔊')),
+          h('div', { class: 'f-hint' }, UI.flowersHint),
+          scoreEl),
+        bed));
+
+    function shake(el) { el.classList.remove('nope'); void el.offsetWidth; el.classList.add('nope'); }
+    function tap(p) {
+      if (busy) return;
+      if (p.c === target()) {
+        busy = true;
+        p.el.classList.remove('hint');
+        p.el.append(h('span', { class: 'drop' }, '💧'));
+        sfx.flip();
+        later(() => {
+          p.bloomed = true;
+          p.el.classList.add('bloom');
+          p.sprout.textContent = pick(DATA.flowers);
+          p.el.append(h('span', { class: 'bug' }, pick(DATA.bugs)));
+          sfx.good();
+          sayChar(p.c);
+          if (!missed) { grade(p.c, true); addStar(p.el); earned++; }
+          idx++; renderScore();
+          if (idx >= order.length) {
+            later(() => show(renderEnd, { earned, onAgain: () => show(renderFlowers, gi), onBack: back }), 1800);
+          } else {
+            later(() => { missed = false; wrongs = 0; busy = false; speak(promptText()); }, 1700);
+          }
+        }, 450);
+      } else if (p.bloomed) {
+        // Tapping an already-bloomed flower just names it; no penalty.
+        shake(p.el);
+        sayChar(p.c);
+        later(() => speak(promptText()), 1900);
+      } else {
+        shake(p.el);
+        sfx.bad();
+        speak(fmt(UI.thisIs, { c: p.c, w: wordOf(p.c) }));
+        wrongs++;
+        if (!missed) { missed = true; grade(target(), false); }
+        if (wrongs >= 2) plots.get(target()).el.classList.add('hint');
+        later(() => speak(promptText()), 1900);
+      }
+    }
+    later(() => speak(promptText()), 400);
+  }
+
+  // ---------- session time limit ----------
+  function renderRest() {
+    const count = Math.floor(state.stars / 10);
+    app.append(topbar('', null), h('div', { class: 'screen' }, h('div', { class: 'end' },
+      emo('🌙', 'hero'),
+      h('h2', {}, UI.restTitle),
+      h('p', {}, UI.restSub),
+      h('div', { class: 'garden' }, Array.from({ length: Math.min(count, 36) }, (_, k) =>
+        h('span', { class: 'plant', style: `animation-delay:${k * 35}ms` }, DATA.garden[(Math.max(0, count - 36) + k) % DATA.garden.length]))),
+      h('div', { class: 'row' }, holdButton(UI.parentMore, () => { extendSession(); show(renderHome); })))));
+    later0(() => speak(UI.restTitle + UI.restSub), 300);
+  }
+  function later0(fn, ms) { const t = setTimeout(fn, ms); cleanup = () => clearTimeout(t); }
+
+  // ---------- treasure box ----------
+  function renderBox() {
+    const seen = ALL.filter((c) => peek(c).n).length;
+    const solid = ALL.filter((c) => peek(c).l >= 4).length;
+    const screen = h('div', { class: 'screen' },
+      h('p', { class: 'box-sum' }, fmt(UI.boxSummary, { n: seen, m: solid })),
+      h('div', { class: 'legend' },
+        [['lv-a', UI.legendA], ['lv-b', UI.legendB], ['lv-c', UI.legendC], ['lv-d', UI.legendD]]
+          .map(([cls, label]) => h('span', {}, h('i', { class: cls }), label))));
+    GROUPS.forEach((g, gi) => {
+      screen.append(h('div', { class: 'box-group' },
+        h('h3', {}, fmt(UI.levelN, { n: gi + 1 }) + ' ' + g.name),
+        h('div', { class: 'box-row' }, g.chars.map((x) => {
+          const cls = lvClass(x.c);
+          const t = tzg(x.c, cls === 'lv-none' ? 'unseen' : cls);
+          if (cls !== 'lv-none') {
+            t.setAttribute('role', 'button');
+            t.addEventListener('click', () => { sayChar(x.c); t.animate([{ transform: 'scale(1)' }, { transform: 'scale(1.15)' }, { transform: 'scale(1)' }], 300); });
+          }
+          return t;
+        }))));
+    });
+    app.append(topbar(UI.box, goHome), screen);
+  }
+
+  // ---------- parent settings ----------
+  function openSettings() {
+    const rateOut = h('span', {}, state.settings.rate.toFixed(2));
+    const rate = h('input', { type: 'range', min: '0.5', max: '1.2', step: '0.05', value: String(state.settings.rate) });
+    rate.addEventListener('input', () => { state.settings.rate = parseFloat(rate.value); rateOut.textContent = state.settings.rate.toFixed(2); });
+    rate.addEventListener('change', save);
+
+    const voiceSel = h('select', {}, zhVoices.map((v) => h('option', { value: v.name, selected: zhVoice && v.name === zhVoice.name }, v.name)));
+    voiceSel.addEventListener('change', () => { state.settings.voice = voiceSel.value; pickVoice(); save(); });
+
+    const lenSel = h('select', {}, [10, 15, 20, 30, 0].map((n) =>
+      h('option', { value: String(n), selected: n === (state.settings.sessionMin || 0) }, n ? fmt(UI.minutes, { n }) : UI.noLimit)));
+    lenSel.addEventListener('change', () => { state.settings.sessionMin = parseInt(lenSel.value, 10); save(); });
+
+    const unlock = h('input', { type: 'checkbox', checked: state.settings.unlockAll });
+    unlock.addEventListener('change', () => { state.settings.unlockAll = unlock.checked; save(); });
+
+    let armed = false, armTimer = null;
+    const resetBtn = h('button', { class: 'btn small ghost' }, UI.reset);
+    resetBtn.addEventListener('click', () => {
+      if (!armed) {
+        armed = true; resetBtn.textContent = UI.resetConfirm; resetBtn.classList.replace('ghost', 'berry');
+        armTimer = setTimeout(() => { armed = false; resetBtn.textContent = UI.reset; resetBtn.classList.replace('berry', 'ghost'); }, 4000);
+        return;
+      }
+      clearTimeout(armTimer);
+      const keep = state.settings;
+      state = defaultState(); state.settings = keep;
+      save(); toast(UI.resetDone); close();
+    });
+
+    const overlay = h('div', { class: 'overlay', onclick: (e) => { if (e.target === overlay) close(); } },
+      h('div', { class: 'panel', role: 'dialog', 'aria-modal': 'true' },
+        h('h2', {}, UI.settings),
+        h('label', {}, h('span', {}, UI.rate, ' ', rateOut), rate),
+        zhVoices.length
+          ? h('label', {}, UI.voice, voiceSel)
+          : h('p', { class: 'note' }, UI.noVoice),
+        h('div', { class: 'row' }, h('button', { class: 'btn small sun', onclick: () => speak(UI.testSentence) }, emo('🔊'), UI.test)),
+        h('label', {}, UI.sessionLen, lenSel),
+        h('label', { class: 'inline' }, unlock, UI.unlockAll),
+        h('p', { class: 'note' }, syncMode === 'cloud' ? UI.syncCloud : UI.syncLocal),
+        h('div', { class: 'row' }, resetBtn, h('button', { class: 'btn small leaf', onclick: () => close() }, UI.close))));
+    function close() { overlay.remove(); show(currentScreen === renderHome ? renderHome : currentScreen); }
+    document.body.append(overlay);
+  }
+
+  // ---------- boot ----------
+  show(renderHome);
+  initRemote();
+})();
+</script>
+<script>
+  // Offline support when served over http(s).
+  if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
+    window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
+  }
+</script>
+</body>
+</html>
