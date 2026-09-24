@@ -197,6 +197,9 @@ button:focus-visible { outline: 4px solid var(--sky); outline-offset: 3px; }
 @keyframes hop { 40% { transform: translateY(-16px) scale(1.06); } }
 @keyframes shake { 20%, 60% { transform: translateX(-10px); } 40%, 80% { transform: translateX(10px); } }
 @keyframes glow { 50% { box-shadow: 0 0 0 8px var(--sun); } }
+.fill-word { display: flex; align-items: center; justify-content: center; gap: .08em; font-family: var(--f-han); font-size: clamp(60px, 11vh, 104px); line-height: 1; }
+.fill-word .tzg { width: 1.15em; border-color: var(--sun); border-style: dashed; }
+.fill-word .tzg.filled { border-color: var(--leaf); border-style: solid; background: var(--lv-b); animation: hop .5s; }
 .praise { font-size: 34px; color: var(--leaf); height: 44px; text-align: center; margin-top: 8px; }
 .praise.no { color: var(--berry); }
 .praise.pop { animation: bump .5s; }
@@ -331,6 +334,8 @@ button:focus-visible { outline: 4px solid var(--sky); outline-offset: 3px; }
     "picture": "看图找字",
     "memory": "翻牌配对",
     "flowers": "浇花开花",
+    "fill": "选字填词",
+    "fillHint": "哪个字能填进去？",
     "hear": "听一听",
     "trace": "描一描",
     "traceOff": "不描了",
@@ -853,6 +858,7 @@ button:focus-visible { outline: 4px solid var(--sky); outline-offset: 3px; }
       learn: ['📖', UI.learn, 'sky', () => show(renderLearn, chars, { title: g.name, onBack: back, onDone: () => show(renderLearnDone, li, gi) })],
       listen: ['👂', UI.listen, 'sun', () => show(renderQuiz, { items: shuffle(chars), mode: 'listen', pool: chars, title: UI.listen, onBack: back })],
       picture: ['🖼️', UI.picture, 'leaf', () => show(renderQuiz, { items: shuffle(chars.filter(hasPic)), mode: 'picture', pool: chars, title: UI.picture, onBack: back })],
+      fill: ['🧩', UI.fill, 'leaf', () => show(renderQuiz, { items: shuffle(chars), mode: 'fill', pool: chars, title: UI.fill, onBack: back })],
       memory: ['🃏', UI.memory, 'berry', () => show(renderMemory, li, gi)],
       flowers: ['🌷', UI.flowers, 'sky', () => show(renderFlowers, li, gi)],
     };
@@ -966,7 +972,7 @@ button:focus-visible { outline: 4px solid var(--sky); outline-offset: 3px; }
     cleanup = () => { if (layer) layer.dispose(); };
   }
 
-  // ---------- multiple-choice quiz (listen / picture / mixed) ----------
+  // ---------- multiple-choice quiz (listen / picture / fill / mixed) ----------
   // Distractors never share the answer's toneless reading. With a picture, they must not share that picture;
   // in picture mode they must have a picture of their own. Filled from the pool, then the current library, then all.
   function distractors(c, pool, n, mode) {
@@ -976,6 +982,7 @@ button:focus-visible { outline: 4px solid var(--sky); outline-offset: 3px; }
       if (o === c || toneless(y.py) === base) return false;
       if (x.pic && y.pic === x.pic) return false;
       if (mode === 'picture' && !y.pic) return false;
+      if (mode === 'fill' && fillsAnotherWord(c, o)) return false;
       return true;
     };
     const libChars = currentLib().groups.flatMap((g) => g.chars.map((y) => y.c));
@@ -986,8 +993,17 @@ button:focus-visible { outline: 4px solid var(--sky); outline-offset: 3px; }
     }
     return cand.slice(0, n);
   }
-  // Mixed rounds: characters with a picture use listen or picture; the others use listen only.
-  const mixedMode = (c) => (hasPic(c) ? pick(['listen', 'picture']) : 'listen');
+  // A distractor that, put in the blank, spells some other character's word would also be a right answer.
+  function fillsAnotherWord(target, candidate) {
+    const filled = blankWord(CHAR.get(target).w, target, candidate);
+    return [...CHAR.values()].some((x) => x.w === filled);
+  }
+  // Mixed rounds: characters with a picture use listen or picture; the others use listen, or fill when the
+  // character's own library includes the fill game.
+  const mixedMode = (c) => {
+    if (hasPic(c)) return pick(['listen', 'picture']);
+    return LIBS[CHAR.get(c).lib].profile.games.includes('fill') ? pick(['listen', 'fill']) : 'listen';
+  };
 
   function renderQuiz(cfg) {
     const queue = cfg.items.map((c) => ({ c, m: cfg.mode === 'mixed' ? mixedMode(c) : cfg.mode, retried: false }));
@@ -1011,13 +1027,26 @@ button:focus-visible { outline: 4px solid var(--sky); outline-offset: 3px; }
     function round(it) {
       const x = CHAR.get(it.c);
       const opts = shuffle([it.c, ...distractors(it.c, cfg.pool, 3, it.m)]);
-      let wrong = 0, locked = false;
+      let wrong = 0, locked = false, blanks = [];
       const promptText = fmt(UI.promptListen, { c: it.c, w: x.w });
       if (it.m === 'listen') {
         prompt.replaceChildren(
           h('button', { class: 'speaker', 'aria-label': UI.hear, onclick: () => speak(promptText) }, emo('🔊')),
           h('div', { class: 'hint' }, UI.listenTap));
         later(() => speak(promptText), 350);
+      } else if (it.m === 'fill') {
+        // The word with a small empty grid in place of the character; the word is read aloud.
+        blanks = [];
+        const word = h('div', { class: 'fill-word' }, [...x.w].map((ch) => {
+          if (ch !== it.c) return h('span', {}, ch);
+          const b = tzg('');
+          blanks.push(b);
+          return b;
+        }));
+        prompt.replaceChildren(word,
+          h('button', { class: 'speaker small', 'aria-label': UI.hear, onclick: () => speak(x.w) }, emo('🔊')),
+          h('div', { class: 'hint' }, UI.fillHint));
+        later(() => speak(x.w), 350);
       } else {
         prompt.replaceChildren(emo(x.pic, 'big-pic' + (isMany(x.pic) ? ' many' : '')), h('div', { class: 'hint' }, UI.pickPic));
       }
@@ -1031,7 +1060,10 @@ button:focus-visible { outline: 4px solid var(--sky); outline-offset: 3px; }
             sfx.good();
             burst(b, CHEER, 16);
             if (wrong === 0) { grade(it.c, true); addStar(b); earned++; }
-            sayChar(it.c);
+            if (it.m === 'fill') {
+              blanks.forEach((t) => { t.firstChild.textContent = it.c; t.classList.add('filled'); });
+              speak(x.w);
+            } else sayChar(it.c);
             done++;
             later(next, 1700);
           } else {

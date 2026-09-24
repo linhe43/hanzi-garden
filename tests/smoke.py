@@ -201,7 +201,7 @@ def pick_library(p, lib_id):
 
 GAME_LABEL = {"learn": "学新字", "listen": "听音找字", "picture": "看图找字", "memory": "翻牌配对",
               "flowers": "浇花开花", "fill": "选字填词"}
-BUILT_GAMES = {"learn", "listen", "picture", "memory", "flowers"}
+BUILT_GAMES = {"learn", "listen", "picture", "memory", "flowers", "fill"}
 
 
 def t_libraries(browser):
@@ -386,6 +386,37 @@ def t_nopic(browser):
     pg.close()
 
 
+def t_fill(browser):
+    """Fill-in-the-word: blank shows in the word, no second valid option, right answer fills the blank."""
+    data = charsets()
+    lib56 = data["libraries"][2]
+    words = {x["w"] for l in data["libraries"] for g in l["groups"] for x in g["chars"]}
+    group = lib56["groups"][0]["chars"]
+    pg = Page(browser, WIDE)
+    p = pg.open()
+    pick_library(p, "age-5-6")
+    open_group(p, 0)
+    open_act(p, "选字填词")
+    for _ in range(len(group)):
+        p.wait_for_selector(".fill-word")
+        shown = p.eval_on_selector(".fill-word", "(w) => [...w.children].map((k) => k.classList.contains('tzg') ? '_' : k.textContent).join('')")
+        opts = p.eval_on_selector_all(".opt", "(os) => os.map((o) => o.getAttribute('aria-label'))")
+        # 我的 and 我们 both show as 我_; the answer is the option whose word matches.
+        answer = next(x for x in group if x["w"].replace(x["c"], "_") == shown and x["c"] in opts)
+        c = answer["c"]
+        check(c in opts and len(set(opts)) == 4, f"options {opts} for {shown}")
+        for o in opts:
+            if o != c:
+                check(answer["w"].replace(c, o) not in words, f"{o} also fills {shown}")
+        p.click(f'.opt[aria-label="{c}"]')
+        check(p.eval_on_selector_all(".fill-word .tzg.filled", "(ts) => ts.map((t) => t.textContent)") == [c] * answer["w"].count(c),
+              "blank not filled with the answer")
+        pg.shot("fill-56")
+        time.sleep(1.9)
+    p.wait_for_selector(".end")
+    pg.close()
+
+
 CHECKS = {
     "load": t_load,
     "migration": t_migration,
@@ -395,6 +426,7 @@ CHECKS = {
     "unlock": t_unlock,
     "daily": t_daily,
     "nopic": t_nopic,
+    "fill": t_fill,
 }
 
 
