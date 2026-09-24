@@ -39,8 +39,8 @@ V1_STATE = {
 class Page:
     """One browser context + page, with page errors collected and optional preloaded state."""
 
-    def __init__(self, browser, size=WIDE, state=None, session_used=0):
-        self.ctx = browser.new_context(viewport=size, service_workers="allow")
+    def __init__(self, browser, size=WIDE, state=None, session_used=0, **ctx):
+        self.ctx = browser.new_context(viewport=size, service_workers="allow", **ctx)
         self.errors = []
         init = []
         if state is not None:
@@ -129,7 +129,8 @@ def t_offline(browser):
         p.reload()
         p.wait_for_selector(".home-actions")
         time.sleep(0.1)
-    check(p.evaluate("caches.keys().then(async (ks) => { for (const k of ks) { if (await (await caches.open(k)).match('data/charsets.json')) return true; } return false; })"),
+    check(p.evaluate("caches.keys()") == ["hanzi-garden-v2"], f"cache names: {p.evaluate('caches.keys()')}")
+    check(p.evaluate("caches.open('hanzi-garden-v2').then((c) => c.match('data/charsets.json')).then((r) => !!r)"),
           "charsets.json not in the service worker cache")
     pg.ctx.set_offline(True)
     p.reload()
@@ -497,6 +498,41 @@ def t_box(browser):
         pg.close()
 
 
+def t_kept(browser):
+    """v1 behavior still in place: rest screen and parent extension, dark mode, reduced motion."""
+    pg = Page(browser, NARROW, session_used=16 * 60 * 1000)
+    p = pg.p
+    p.goto(BASE)
+    p.wait_for_selector(".end .parent")
+    check("今天学得真棒" in p.inner_text(".end"), "rest screen missing after the time limit")
+    pg.shot("rest-narrow")
+    p.focus(".end .parent")
+    p.keyboard.press("Shift+Enter")
+    p.wait_for_selector(".home-actions")
+    pg.close()
+
+    pg = Page(browser, NARROW, color_scheme="dark")
+    p = pg.open()
+    check(p.evaluate("getComputedStyle(document.body).backgroundColor") == "rgb(15, 37, 48)", "dark theme not applied")
+    pick_library(p, "age-6-7")
+    open_group(p, 0)
+    pg.shot("group-67-dark")
+    pg.close()
+
+    pg = Page(browser, WIDE, reduced_motion="reduce")
+    p = pg.open()
+    open_group(p, 0)
+    open_act(p, "听音找字")
+    p.wait_for_selector(".opt")
+    for i in range(4):
+        if p.locator(".opt.right").count():
+            break
+        if not p.locator(".opt").nth(i).is_disabled():
+            p.locator(".opt").nth(i).click()
+    check(p.locator(".fx").count() == 0, "particles shown with reduced motion")
+    pg.close()
+
+
 CHECKS = {
     "load": t_load,
     "migration": t_migration,
@@ -509,6 +545,7 @@ CHECKS = {
     "fill": t_fill,
     "speech": t_speech,
     "box": t_box,
+    "kept": t_kept,
 }
 
 

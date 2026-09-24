@@ -1,10 +1,12 @@
 // Service worker: makes the app work offline after the first visit.
 // Bump CACHE when index.html or data/charsets.json changes so devices pick up the new version.
-const CACHE = 'hanzi-garden-v1';
+const CACHE = 'hanzi-garden-v2';
 const CORE = ['./privacy.html', './', './index.html', './data/charsets.json', './manifest.webmanifest', './icon-180.png', './icon-192.png', './icon-512.png'];
 
 self.addEventListener('install', (e) => {
-  e.waitUntil(caches.open(CACHE).then((c) => c.addAll(CORE)).then(() => self.skipWaiting()));
+  // Bypass the HTTP cache so a new version never stores a stale copy of a file from the previous one.
+  const fresh = CORE.map((u) => new Request(u, { cache: 'reload' }));
+  e.waitUntil(caches.open(CACHE).then((c) => c.addAll(fresh)).then(() => self.skipWaiting()));
 });
 
 self.addEventListener('activate', (e) => {
