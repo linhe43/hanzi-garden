@@ -270,6 +270,65 @@ def t_unlock(browser):
     pg.close()
 
 
+def seeded(lib_id, chars, new_today=0):
+    """A v2 state on library lib_id with the given per-character records."""
+    return {"v": 2, "stars": 0, "updatedAt": 1, "chars": chars,
+            "settings": {"rate": 0.8, "voice": "", "unlockAll": False, "sessionMin": 15, "libraryId": lib_id, "showPinyin": False},
+            "newLog": {"day": time.strftime("%Y-%m-%d"), "count": new_today}}
+
+
+def learn_chars(p):
+    """Characters shown on the learn cards, stepping through with 'next'."""
+    seen = []
+    while True:
+        seen.append(p.inner_text(".learn-box .han"))
+        nxt = p.locator(".learn-nav .btn").last
+        if "学完啦" in nxt.inner_text():
+            return seen
+        nxt.click()
+
+
+def t_daily(browser):
+    data = charsets()
+    lib34, lib45 = data["libraries"][0], data["libraries"][1]
+    # 1) 3-4 library, dailyNew = 1: first run introduces exactly one character, the second run none.
+    pg = Page(browser, WIDE)
+    p = pg.open()
+    p.click(".home-actions .btn.sun")
+    p.wait_for_selector(".learn-card")
+    check(learn_chars(p) == [lib34["groups"][0]["chars"][0]["c"]], "first daily run should teach the first character only")
+    p.goto(BASE)
+    p.wait_for_selector(".home-actions")
+    p.click(".home-actions .btn.sun")
+    time.sleep(0.5)
+    check(p.locator(".learn-card").count() == 0, "second daily run on the same day introduced new characters")
+    check(pg.state()["newLog"]["count"] == 1, "newLog not counted")
+    pg.close()
+
+    # 2) Review is global: on 4-5 with today's new allowance used up, a due 3-4 character is still reviewed.
+    pg = Page(browser, WIDE, state=seeded("age-4-5", {"水": {"l": 2, "d": 0, "n": True, "r": 2, "w": 0}}, new_today=1))
+    p = pg.open()
+    p.click(".home-actions .btn.sun")
+    p.wait_for_selector(".options")
+    opts = p.eval_on_selector_all(".opt", "(os) => os.map((o) => o.getAttribute('aria-label'))")
+    check("水" in opts and p.locator(".learn-card").count() == 0, f"due 3-4 character not reviewed on 4-5: {opts}")
+    pg.close()
+
+    # 3) Finished library: new characters come from the next library; the home note shows once.
+    done = {x["c"]: {"l": 3, "d": 9e15, "n": True, "r": 3, "w": 0} for g in lib34["groups"] for x in g["chars"]}
+    pg = Page(browser, NARROW, state=seeded("age-3-4", done))
+    p = pg.open()
+    check(p.locator(".lib-done").count() == 1, "library-finished note missing")
+    pg.shot("home-lib-done")
+    p.click(".home-actions .btn.sun")
+    p.wait_for_selector(".learn-card")
+    check(learn_chars(p) == [lib45["groups"][0]["chars"][0]["c"]], "new character not taken from the next library")
+    p.goto(BASE)
+    p.wait_for_selector(".home-actions")
+    check(p.locator(".lib-done").count() == 0, "library-finished note shown twice")
+    pg.close()
+
+
 CHECKS = {
     "load": t_load,
     "migration": t_migration,
@@ -277,6 +336,7 @@ CHECKS = {
     "games34": t_games_3_4,
     "libraries": t_libraries,
     "unlock": t_unlock,
+    "daily": t_daily,
 }
 
 

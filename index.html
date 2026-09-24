@@ -125,6 +125,7 @@ button:focus-visible { outline: 4px solid var(--sky); outline-offset: 3px; }
 .home-actions .badge { font-size: 16px; opacity: .9; }
 .home-foot { display: flex; justify-content: flex-end; width: min(100%, 820px); }
 .lib-tag { margin: -8px 0 0; font-size: 18px; background: var(--paper); color: var(--ink-soft); padding: 4px 14px; border-radius: 999px; box-shadow: 0 3px 0 var(--ghost); }
+.lib-done { margin: 0; font-size: 18px; color: var(--leaf-d); text-align: center; }
 .parent { position: relative; overflow: hidden; }
 .parent::after { content: ""; position: absolute; left: 0; bottom: 0; height: 4px; width: 0; background: var(--sun); }
 .parent.holding::after { width: 100%; transition: width 2s linear; }
@@ -379,6 +380,7 @@ button:focus-visible { outline: 4px solid var(--sky); outline-offset: 3px; }
     "libraryProgress": "已认识 {n} / {m}",
     "showPinyin": "显示拼音",
     "currentLib": "{name} · {n}/{m}",
+    "libraryDone": "这个字库学完啦，家长可以换下一个字库",
     "loadFail": "字库没有加载成功，请连上网络再试一次",
     "reload": "再试一次"
   },
@@ -465,6 +467,7 @@ button:focus-visible { outline: 4px solid var(--sky); outline-offset: 3px; }
     v: 2, stars: 0, chars: {},
     settings: { rate: 0.8, voice: '', unlockAll: false, sessionMin: 15, libraryId: 'age-3-4', showPinyin: false },
     newLog: { day: '', count: 0 }, // new characters introduced by daily practice today
+    doneNotice: [],                 // library ids whose "library finished" note was already shown
     updatedAt: 0,
   });
   function normalize(s) {
@@ -474,6 +477,7 @@ button:focus-visible { outline: 4px solid var(--sky); outline-offset: 3px; }
     out.settings = Object.assign(defaultState().settings, (s && s.settings) || {});
     out.chars = out.chars || {};
     out.newLog = out.newLog || { day: '', count: 0 };
+    out.doneNotice = out.doneNotice || [];
     out.v = 2;
     return out;
   }
@@ -757,6 +761,13 @@ button:focus-visible { outline: 4px solid var(--sky); outline-offset: 3px; }
   // ---------- home ----------
   function renderHome() {
     const lib = currentLib();
+    // Shown once per library, the first time the home screen sees it finished.
+    let doneNote = null;
+    if (libSeen(lib) === libSize(lib) && !state.doneNotice.includes(lib.id)) {
+      state.doneNotice.push(lib.id);
+      save();
+      doneNote = h('p', { class: 'lib-done' }, emo('🎉'), ' ', UI.libraryDone);
+    }
     const plants = DATA.garden;
     const count = Math.floor(state.stars / 10);
     const start = Math.max(0, count - 36);
@@ -784,6 +795,7 @@ button:focus-visible { outline: 4px solid var(--sky); outline-offset: 3px; }
           h('div', { class: 'title-tiles', role: 'heading', 'aria-level': '1', 'aria-label': UI.appTitle },
             [...UI.appTitle].map((ch) => tzg(ch))),
           h('p', { class: 'lib-tag' }, fmt(UI.currentLib, { name: lib.name, n: libSeen(lib), m: libSize(lib) })),
+          doneNote,
           garden,
           actions,
           h('div', { class: 'home-foot' }, holdButton(UI.parent, openSettings)))));
@@ -1035,23 +1047,36 @@ button:focus-visible { outline: 4px solid var(--sky); outline-offset: 3px; }
   }
 
   // ---------- daily practice ----------
+  function todayKey() { return new Date().toLocaleDateString('en-CA'); } // YYYY-MM-DD, local time
+  function newAllowanceToday() {
+    if (state.newLog.day !== todayKey()) state.newLog = { day: todayKey(), count: 0 };
+    return Math.max(0, currentLib().profile.dailyNew - state.newLog.count);
+  }
+  // Next unseen characters in order from the current library's unlocked groups.
+  // Once the current library is finished, continue with the libraries after it.
+  function nextFresh(n) {
+    const out = [];
+    for (let li = LIBS.indexOf(currentLib()); li < LIBS.length && out.length < n; li++) {
+      const lib = LIBS[li];
+      for (let gi = 0; gi < lib.groups.length && out.length < n; gi++) {
+        if (!unlocked(lib, gi)) break;
+        for (const x of lib.groups[gi].chars) {
+          if (out.length >= n) break;
+          if (!peek(x.c).n) out.push(x.c);
+        }
+      }
+      if (libSeen(lib) < libSize(lib)) break;
+    }
+    return out;
+  }
+
+  // Review comes from every library; new characters are capped per calendar day by the current library's dailyNew.
   function startDaily() {
     const now = Date.now();
     const due = ALL.filter((c) => peek(c).n && peek(c).d <= now)
       .sort((a, b) => peek(a).l - peek(b).l || peek(a).d - peek(b).d)
       .slice(0, 10);
-    const fresh = [];
-    if (due.length < 8) {
-      const need = Math.min(3, 10 - due.length);
-      const lib = currentLib();
-      for (let gi = 0; gi < lib.groups.length && fresh.length < need; gi++) {
-        if (!unlocked(lib, gi)) break;
-        for (const x of lib.groups[gi].chars) {
-          if (fresh.length >= need) break;
-          if (!peek(x.c).n) fresh.push(x.c);
-        }
-      }
-    }
+    const fresh = due.length < 8 ? nextFresh(Math.min(newAllowanceToday(), 10 - due.length)) : [];
     if (!due.length && !fresh.length) {
       show(() => {
         app.append(topbar(UI.daily, goHome), h('div', { class: 'screen' }, h('div', { class: 'end' },
@@ -1066,8 +1091,12 @@ button:focus-visible { outline: 4px solid var(--sky); outline-offset: 3px; }
     if (pool.length < 6) pool = currentLib().groups.filter((_, gi) => unlocked(currentLib(), gi)).flatMap((g) => g.chars.map((x) => x.c));
     const items = shuffle([...due, ...fresh]).concat(shuffle(fresh));
     const runQuiz = () => show(renderQuiz, { items, mode: 'mixed', pool, title: UI.daily, onBack: goHome, onAgain: startDaily });
-    if (fresh.length) show(renderLearn, fresh, { title: UI.newChars, onBack: goHome, onDone: runQuiz });
-    else runQuiz();
+    if (fresh.length) {
+      // Counted when the cards open, so leaving halfway does not hand out more new characters later today.
+      state.newLog.count += fresh.length;
+      save();
+      show(renderLearn, fresh, { title: UI.newChars, onBack: goHome, onDone: runQuiz });
+    } else runQuiz();
   }
 
   // ---------- memory match: look first, then find the pairs ----------
