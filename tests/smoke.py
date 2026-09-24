@@ -157,8 +157,8 @@ def t_offline(browser):
         p.reload()
         p.wait_for_selector(".home-actions")
         time.sleep(0.1)
-    check(p.evaluate("caches.keys()") == ["hanzi-garden-v2"], f"cache names: {p.evaluate('caches.keys()')}")
-    check(p.evaluate("caches.open('hanzi-garden-v2').then((c) => c.match('data/charsets.json')).then((r) => !!r)"),
+    check(p.evaluate("caches.keys()") == ["hanzi-garden-v3"], f"cache names: {p.evaluate('caches.keys()')}")
+    check(p.evaluate("caches.open('hanzi-garden-v3').then((c) => c.match('data/charsets.json')).then((r) => !!r)"),
           "charsets.json not in the service worker cache")
     pg.ctx.set_offline(True)
     p.reload()
@@ -317,10 +317,14 @@ def t_unlock(browser):
 
 
 def seeded(lib_id, chars, new_today=0):
-    """A v2 state on library lib_id with the given per-character records."""
+    """A v2 state on library lib_id with the given per-character records and new characters already taken today."""
     return {"v": 2, "stars": 0, "updatedAt": 1, "chars": chars,
             "settings": {"rate": 0.8, "voice": "", "unlockAll": False, "sessionMin": 15, "libraryId": lib_id, "showPinyin": False},
-            "newLog": {"day": time.strftime("%Y-%m-%d"), "count": new_today}}
+            "newLog": {"day": time.strftime("%Y-%m-%d"), "byLib": {lib_id: new_today}}}
+
+
+def profile(li):
+    return LIBS[li]["profile"]
 
 
 def learn_chars(p):
@@ -337,22 +341,23 @@ def learn_chars(p):
 def t_daily(browser):
     data = charsets()
     lib34, lib45 = data["libraries"][0], data["libraries"][1]
-    # 1) 3-4 library, dailyNew = 1: first run introduces exactly one character, the second run none.
+    # 1) 3-4 library: the first run introduces dailyNew characters in order, the second run none.
+    n34 = profile(0)["dailyNew"]
     pg = Page(browser, WIDE)
     p = pg.open()
     p.click(".home-actions .btn.sun")
     p.wait_for_selector(".learn-card")
-    check(learn_chars(p) == [lib34["groups"][0]["chars"][0]["c"]], "first daily run should teach the first character only")
+    check(learn_chars(p) == [char(0, 0, k)["c"] for k in range(n34)], "first daily run should teach dailyNew characters")
     p.goto(BASE)
     p.wait_for_selector(".home-actions")
     p.click(".home-actions .btn.sun")
     time.sleep(0.5)
     check(p.locator(".learn-card").count() == 0, "second daily run on the same day introduced new characters")
-    check(pg.state()["newLog"]["count"] == 1, "newLog not counted")
+    check(pg.state()["newLog"]["byLib"]["age-3-4"] == n34, "newLog not counted")
     pg.close()
 
     # 2) Review is global: on 4-5 with today's new allowance used up, a due 3-4 character is still reviewed.
-    pg = Page(browser, WIDE, state=seeded("age-4-5", {C_WATER: {"l": 2, "d": 0, "n": True, "r": 2, "w": 0}}, new_today=1))
+    pg = Page(browser, WIDE, state=seeded("age-4-5", {C_WATER: {"l": 2, "d": 0, "n": True, "r": 2, "w": 0}}, new_today=10))
     p = pg.open()
     p.click(".home-actions .btn.sun")
     p.wait_for_selector(".options")
@@ -368,7 +373,7 @@ def t_daily(browser):
     pg.shot("home-lib-done")
     p.click(".home-actions .btn.sun")
     p.wait_for_selector(".learn-card")
-    check(learn_chars(p) == [lib45["groups"][0]["chars"][0]["c"]], "new character not taken from the next library")
+    check(learn_chars(p) == [char(1, 0, k)["c"] for k in range(n34)], "new characters not taken from the next library")
     p.goto(BASE)
     p.wait_for_selector(".home-actions")
     check(p.locator(".lib-done").count() == 0, "library-finished note shown twice")
@@ -467,7 +472,7 @@ def t_speech(browser):
     """Speech template follows the character's own library; the pinyin toggle controls the learn card."""
     # On 5-6, reviewing a 3-4 character (wordOf) still uses the wordOf phrasing; a 5-6 character uses charWord.
     old, new = char(0, 1, 5), char(2, 0, 2)
-    pg = Page(browser, WIDE, state=seeded("age-5-6", {old["c"]: {"l": 2, "d": 0, "n": True, "r": 2, "w": 0}}, new_today=1))
+    pg = Page(browser, WIDE, state=seeded("age-5-6", {old["c"]: {"l": 2, "d": 0, "n": True, "r": 2, "w": 0}}, new_today=10))
     p = pg.open()
     p.click(".home-actions .btn.sun")
     p.wait_for_selector(".options")
@@ -579,20 +584,55 @@ def t_daily_new(browser):
     pg = Page(browser, NARROW)
     p = pg.open()
     open_settings(p)
-    p.select_option(settings_select(p, "dailyNew"), "3")
+    opts = p.eval_on_selector_all(settings_select(p, "dailyNew") + " option", "(os) => os.map((o) => o.value)")
+    check(opts == [str(n) for n in range(1, 11)], f"daily new choices should be 1-10: {opts}")
+    p.select_option(settings_select(p, "dailyNew"), "7")
     pg.shot("settings-daily-new")
     p.click(".panel .btn.leaf")
     open_settings(p)
-    check(p.input_value(settings_select(p, "dailyNew")) == "3", "daily new setting lost")
+    check(p.input_value(settings_select(p, "dailyNew")) == "7", "daily new setting lost")
     p.click(".panel .btn.leaf")
     p.click(".home-actions .btn.sun")
     p.wait_for_selector(".learn-card")
-    check(learn_chars(p) == [char(0, 0, k)["c"] for k in range(3)], "daily practice did not teach 3 new characters")
+    check(learn_chars(p) == [char(0, 0, k)["c"] for k in range(7)], "daily practice did not teach 7 new characters")
     p.goto(BASE)
     p.wait_for_selector(".home-actions")
     p.click(".home-actions .btn.sun")
     time.sleep(0.5)
     check(p.locator(".learn-card").count() == 0, "more new characters than the daily setting")
+    pg.close()
+
+
+def t_switch(browser):
+    """After today's new characters in 3-4, switching to 5-6 brings 5-6 new characters, even with reviews due."""
+    lots_due = {char(0, g, k)["c"]: {"l": 2, "d": 0, "n": True, "r": 2, "w": 0} for g in (1, 2) for k in range(10)}
+    pg = Page(browser, WIDE, state=seeded("age-3-4", lots_due, new_today=profile(0)["dailyNew"]))
+    p = pg.open()
+    pick_library(p, "age-5-6")
+    p.click(".home-actions .btn.sun")
+    p.wait_for_selector(".learn-card")
+    fresh = [char(2, 0, k)["c"] for k in range(profile(2)["dailyNew"])]
+    check(learn_chars(p) == fresh, "switching library did not bring its new characters")
+    p.locator(".learn-nav .btn").last.click()
+    lib56 = {x["c"] for g in LIBS[2]["groups"] for x in g["chars"]}
+    lib34 = {x["c"] for g in LIBS[0]["groups"] for x in g["chars"]}
+    seen_new = 0
+    for _ in range(40):
+        if not p.locator(".opt").count():
+            break
+        opts = p.eval_on_selector_all(".opt", "(os) => os.map((o) => o.getAttribute('aria-label'))")
+        target = next((o for o in opts if o in fresh), None)
+        if target and sum(o in lib56 for o in opts) == 4:
+            seen_new += 1
+        # answer by trying options until one is right
+        for i in range(4):
+            if p.locator(".opt.right").count():
+                break
+            if not p.locator(".opt").nth(i).is_disabled():
+                p.locator(".opt").nth(i).click()
+        time.sleep(1.9)
+    check(seen_new >= 1, "no quiz round showed the new 5-6 characters with 5-6 options")
+    check(pg.state()["newLog"]["byLib"].get("age-5-6") == len(fresh), "5-6 allowance not counted separately")
     pg.close()
 
 
@@ -605,6 +645,7 @@ CHECKS = {
     "unlock": t_unlock,
     "daily": t_daily,
     "dailynew": t_daily_new,
+    "switch": t_switch,
     "nopic": t_nopic,
     "fill": t_fill,
     "speech": t_speech,

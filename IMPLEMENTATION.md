@@ -59,7 +59,7 @@ hanzi-garden/
       "name": "3–4岁字库",
       "desc": "看得见、画得出的字……",
       "profile": {
-        "dailyNew": 1,
+        "dailyNew": 3,
         "sessionMin": 10,
         "showPinyin": false,
         "speech": "wordOf",
@@ -181,22 +181,22 @@ function unlocked(lib, gi) {
 ### Step 5 · 今日练习：复习全局，新字按当前字库
 
 - **复习**：从**所有字库**里挑已经到期的字。以前字库里学过的字也要继续复习，不能因为换了字库就不管了。
-- **新字**：从当前字库里、已解锁的组中，按顺序挑还没学过的字。每天引入的新字数量有上限：
+- **新字**：从当前字库里、已解锁的组中，按顺序挑还没学过的字。每天引入的新字数量有上限（家长设置的 1–10 个，默认取字库 `profile.dailyNew`：3–4岁、4–5岁 3 个，5–6岁、6–7岁 5 个）。上限**按字库分别计数**，家长换了字库，当天就能学新字库的字。新字不会被复习挤掉：每次今日练习 = 今天剩下的新字 + 最多 10 个到期复习的字。
 
 ```js
 function todayKey() { return new Date().toLocaleDateString('en-CA'); } // YYYY-MM-DD, local time
 function newAllowanceToday() {
-  if (state.newLog.day !== todayKey()) state.newLog = { day: todayKey(), count: 0 };
-  return Math.max(0, dailyNewLimit() - state.newLog.count);
+  if (state.newLog.day !== todayKey()) state.newLog = { day: todayKey(), byLib: {} };
+  return Math.max(0, dailyNewLimit() - (state.newLog.byLib[currentLib().id] || 0));
 }
-// After the learn cards for fresh characters are shown in daily practice:
-state.newLog.count += fresh.length; save();
+// When the learn cards for fresh characters open in daily practice:
+state.newLog.byLib[currentLib().id] = (state.newLog.byLib[currentLib().id] || 0) + fresh.length; save();
 ```
 
 - 当前字库的字都学完了：新字自动从下一个字库里取，同时在首页显示一次提示「这个字库学完啦，家长可以换下一个字库」（新增 `ui.libraryDone`）。
 - 在关卡页里主动点「学新字」**不受**每日上限限制。这是家长或孩子自己选的，也不计入 `newLog`。
 
-> 每天只引入 1 个新字，加上复习，大约 5 到 8 分钟就能做完。时长上限（10 或 15 分钟）剩下的时间，孩子可以去闯关页玩游戏。
+> 时长上限（10 或 15 分钟）会在当前这一局结束后生效，剩下的时间孩子可以去闯关页玩游戏。
 
 ### Step 6 · 没有图的字
 
@@ -283,7 +283,8 @@ function tpl(base, c) { return UI[base + (speechStyle(c) === 'wordOf' ? 'WordOf'
 - [ ] 家长设置里切换 4 个字库，首页标签、地图、关卡都跟着变
 - [ ] 切换字库后，时长和拼音开关变成这个字库的默认值，之后还能手动改
 - [ ] 每个字库的第 1 组都是开放的；解锁规则在各个字库里分别计算
-- [ ] 今日练习：同一天第二次打开时不再引入新字（3–4岁字库，`dailyNew = 1`）
+- [ ] 今日练习：同一天第二次打开时不再引入新字（3–4岁字库，默认每天 3 个）
+- [ ] 换字库后，今日练习当天就出新字库的新字
 - [ ] 今日练习：会复习以前字库里到期的字
 - [ ] 5–6岁字库：学字卡显示大号例词；翻牌出现听音卡；看不到「看图找字」
 - [ ] 选字填词：答对后空位填上字并朗读整个词；没有两个都对的选项

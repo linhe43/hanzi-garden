@@ -488,7 +488,7 @@ button:focus-visible { outline: 4px solid var(--sky); outline-offset: 3px; }
   const defaultState = () => ({
     v: 2, stars: 0, chars: {},
     settings: { rate: 0.8, voice: '', unlockAll: false, sessionMin: 15, libraryId: 'age-3-4', showPinyin: false, dailyNew: null },
-    newLog: { day: '', count: 0 }, // new characters introduced by daily practice today
+    newLog: { day: '', byLib: {} }, // new characters introduced by daily practice today, per library id
     doneNotice: [],                 // library ids whose "library finished" note was already shown
     updatedAt: 0,
   });
@@ -498,7 +498,7 @@ button:focus-visible { outline: 4px solid var(--sky); outline-offset: 3px; }
     // Missing v2 settings (libraryId, showPinyin, dailyNew) fall back to the defaults above.
     out.settings = Object.assign(defaultState().settings, (s && s.settings) || {});
     out.chars = out.chars || {};
-    out.newLog = out.newLog || { day: '', count: 0 };
+    if (!out.newLog || !out.newLog.byLib) out.newLog = { day: '', byLib: {} }; // older shape: { day, count }
     out.doneNotice = out.doneNotice || [];
     out.v = 2;
     return out;
@@ -989,7 +989,8 @@ button:focus-visible { outline: 4px solid var(--sky); outline-offset: 3px; }
 
   // ---------- multiple-choice quiz (listen / picture / fill / mixed) ----------
   // Distractors never share the answer's toneless reading. With a picture, they must not share that picture;
-  // in picture mode they must have a picture of their own. Filled from the pool, then the current library, then all.
+  // in picture mode they must have a picture of their own. Taken from the pool's characters of the answer's own
+  // library first, then the rest of the pool, then that library, then all.
   function distractors(c, pool, n, mode) {
     const x = CHAR.get(c), base = toneless(x.py);
     const ok = (o) => {
@@ -1000,9 +1001,9 @@ button:focus-visible { outline: 4px solid var(--sky); outline-offset: 3px; }
       if (mode === 'fill' && fillsAnotherWord(c, o)) return false;
       return true;
     };
-    const libChars = currentLib().groups.flatMap((g) => g.chars.map((y) => y.c));
-    let cand = shuffle(pool.filter(ok));
-    for (const more of [libChars, ALL]) {
+    const libChars = LIBS[x.lib].groups.flatMap((g) => g.chars.map((y) => y.c));
+    let cand = shuffle(pool.filter((o) => ok(o) && CHAR.get(o).lib === x.lib));
+    for (const more of [pool, libChars, ALL]) {
       if (cand.length >= n) break;
       cand = cand.concat(shuffle(more.filter((o) => ok(o) && !cand.includes(o))));
     }
@@ -1118,8 +1119,8 @@ button:focus-visible { outline: 4px solid var(--sky); outline-offset: 3px; }
   // Parent's choice, or the current library's default when none was made.
   const dailyNewLimit = () => state.settings.dailyNew || currentLib().profile.dailyNew;
   function newAllowanceToday() {
-    if (state.newLog.day !== todayKey()) state.newLog = { day: todayKey(), count: 0 };
-    return Math.max(0, dailyNewLimit() - state.newLog.count);
+    if (state.newLog.day !== todayKey()) state.newLog = { day: todayKey(), byLib: {} };
+    return Math.max(0, dailyNewLimit() - (state.newLog.byLib[currentLib().id] || 0));
   }
   // Next unseen characters in order from the current library's unlocked groups.
   // Once the current library is finished, continue with the libraries after it.
@@ -1139,13 +1140,14 @@ button:focus-visible { outline: 4px solid var(--sky); outline-offset: 3px; }
     return out;
   }
 
-  // Review comes from every library; new characters are capped per calendar day by the current library's dailyNew.
+  // Each run: today's remaining new characters (the allowance is counted per library, so switching libraries
+  // brings that library's new characters) plus up to 10 due reviews from every library.
   function startDaily() {
     const now = Date.now();
     const due = ALL.filter((c) => peek(c).n && peek(c).d <= now)
       .sort((a, b) => peek(a).l - peek(b).l || peek(a).d - peek(b).d)
       .slice(0, 10);
-    const fresh = due.length < 8 ? nextFresh(Math.min(newAllowanceToday(), 10 - due.length)) : [];
+    const fresh = nextFresh(newAllowanceToday());
     if (!due.length && !fresh.length) {
       show(() => {
         app.append(topbar(UI.daily, goHome), h('div', { class: 'screen' }, h('div', { class: 'end' },
@@ -1162,7 +1164,8 @@ button:focus-visible { outline: 4px solid var(--sky); outline-offset: 3px; }
     const runQuiz = () => show(renderQuiz, { items, mode: 'mixed', pool, title: UI.daily, onBack: goHome, onAgain: startDaily });
     if (fresh.length) {
       // Counted when the cards open, so leaving halfway does not hand out more new characters later today.
-      state.newLog.count += fresh.length;
+      const id = currentLib().id;
+      state.newLog.byLib[id] = (state.newLog.byLib[id] || 0) + fresh.length;
       save();
       show(renderLearn, fresh, { title: UI.newChars, onBack: goHome, onDone: runQuiz });
     } else runQuiz();
@@ -1425,7 +1428,7 @@ button:focus-visible { outline: 4px solid var(--sky); outline-offset: 3px; }
   // ---------- parent settings ----------
   function openSettings() {
     // Library choice fills in that library's defaults below; the parent can adjust them and closes with confirm.
-    const newSel = h('select', {}, [1, 2, 3, 4, 5].map((n) =>
+    const newSel = h('select', {}, [1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((n) =>
       h('option', { value: String(n), selected: n === dailyNewLimit() }, fmt(UI.dailyNewN, { n }))));
     newSel.addEventListener('change', () => { state.settings.dailyNew = parseInt(newSel.value, 10); save(); });
 

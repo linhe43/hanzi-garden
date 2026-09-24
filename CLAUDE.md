@@ -6,7 +6,7 @@ Hanzi Garden (识字小花园): a kids' Chinese character-learning PWA. Design a
 
 - **No personal data, ever.** Never ask for or store age, birthdate, name, or any other personal information. Age only appears as the name of a library the parent picks.
 - **No build.** The app is `index.html` (vanilla JS + CSS) plus `data/charsets.json`. Don't add frameworks, bundlers, or npm dependencies. External resources: Google Fonts only.
-- **Bump the cache.** Any change to a cached file (`index.html`, `data/charsets.json`, `privacy.html`, manifest, icons) → bump `CACHE` in `sw.js` (`hanzi-garden-v2` → `v3`). The service worker serves these cache-first, so without a bump devices keep the old copy. New files needed offline must also go into `CORE`.
+- **Bump the cache.** Any change to a cached file (`index.html`, `data/charsets.json`, `privacy.html`, manifest, icons) → bump `CACHE` in `sw.js` (`hanzi-garden-v3` → `v4`). The service worker serves these cache-first, so without a bump devices keep the old copy. New files needed offline must also go into `CORE`.
 - **Content vs. code.** Chinese text lives only in `data/charsets.json` and the `<script type="application/json" id="content">` block (`ui` for interface strings). Code, comments, and string literals stay English.
 - **Charsets are generated.** Don't edit `data/charsets.json` by hand: change `tools/hand_libraries.json`, `tools/lib56_67.txt`, or `tools/pinyin_overrides.json`, then run `python tools/build_charsets.py --review`. Per-library behavior comes from the `profile` (set in the script's `PROFILES`); never hard-code age rules in the app.
 - **Served over http(s) only.** The app fetches `data/charsets.json`, so opening `index.html` via `file://` no longer works. Use `python -m http.server` locally.

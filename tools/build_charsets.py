@@ -34,13 +34,13 @@ with open(os.path.join(HERE, "pinyin_overrides.json"), encoding="utf-8") as f:
 #   speech          "wordOf": char + "word-of-char" phrasing; "charWord": char then word (for function words)
 #   games           activity ids shown on the group screen, in order
 PROFILES = {
-    "age-3-4": {"dailyNew": 1, "sessionMin": 10, "showPinyin": False, "speech": "wordOf",
+    "age-3-4": {"dailyNew": 3, "sessionMin": 10, "showPinyin": False, "speech": "wordOf",
                 "games": ["learn", "flowers", "picture", "memory", "listen"]},
-    "age-4-5": {"dailyNew": 1, "sessionMin": 10, "showPinyin": False, "speech": "wordOf",
+    "age-4-5": {"dailyNew": 3, "sessionMin": 10, "showPinyin": False, "speech": "wordOf",
                 "games": ["learn", "flowers", "listen", "picture", "memory"]},
-    "age-5-6": {"dailyNew": 1, "sessionMin": 15, "showPinyin": False, "speech": "charWord",
+    "age-5-6": {"dailyNew": 5, "sessionMin": 15, "showPinyin": False, "speech": "charWord",
                 "games": ["learn", "listen", "fill", "memory", "flowers"]},
-    "age-6-7": {"dailyNew": 2, "sessionMin": 15, "showPinyin": True, "speech": "charWord",
+    "age-6-7": {"dailyNew": 5, "sessionMin": 15, "showPinyin": True, "speech": "charWord",
                 "games": ["learn", "listen", "fill", "memory", "flowers"]},
 }
 

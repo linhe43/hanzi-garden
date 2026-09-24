@@ -998,7 +998,7 @@
     }
    ],
    "profile": {
-    "dailyNew": 1,
+    "dailyNew": 3,
     "sessionMin": 10,
     "showPinyin": false,
     "speech": "wordOf",
@@ -2008,7 +2008,7 @@
     }
    ],
    "profile": {
-    "dailyNew": 1,
+    "dailyNew": 3,
     "sessionMin": 10,
     "showPinyin": false,
     "speech": "wordOf",
@@ -4008,7 +4008,7 @@
     }
    ],
    "profile": {
-    "dailyNew": 1,
+    "dailyNew": 5,
     "sessionMin": 15,
     "showPinyin": false,
     "speech": "charWord",
@@ -6668,7 +6668,7 @@
     }
    ],
    "profile": {
-    "dailyNew": 2,
+    "dailyNew": 5,
     "sessionMin": 15,
     "showPinyin": true,
     "speech": "charWord",
