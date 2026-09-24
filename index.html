@@ -11,10 +11,13 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="识字小花园">
 <meta name="theme-color" content="#CDEDF4">
+<link rel="preload" href="fonts/kai.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=ZCOOL+KuaiLe&family=Noto+Serif+SC:wght@600&family=Noto+Color+Emoji&display=swap" rel="stylesheet">
 <style>
+/* Textbook-standard Kai forms on every device: a subset of LXGW WenKai GB (fonts/OFL.txt), built by tools/build_font.py. */
+@font-face { font-family: "HG Kai"; src: url("fonts/kai.woff2") format("woff2"); font-display: swap; }
 :root {
   --bg: #CDEDF4;
   --bg-2: #E6F7FA;
@@ -37,7 +40,7 @@
   --lv-c: #7FD19F;
   --lv-d: #FFD66B;
   --f-ui: "ZCOOL KuaiLe", "Microsoft YaHei", "PingFang SC", sans-serif;
-  --f-han: "KaiTi", "STKaiti", "Noto Serif SC", serif;
+  --f-han: "HG Kai", "KaiTi", "STKaiti", "Noto Serif SC", serif;
   --f-emoji: "Noto Color Emoji", "Segoe UI Emoji", "Apple Color Emoji", sans-serif;
   --f-py: "Segoe UI", "Microsoft YaHei", Arial, sans-serif;
   box-sizing: border-box;

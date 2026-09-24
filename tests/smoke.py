@@ -124,6 +124,25 @@ def t_load(browser):
         pg.close()
 
 
+def kai_loaded(p):
+    p.evaluate("document.fonts.ready")
+    return p.evaluate("""() => [...document.fonts].some((f) => f.family.replace(/"/g, '') === 'HG Kai' && f.status === 'loaded')""")
+
+
+def t_font(browser):
+    """Characters use the bundled Kai font on every device; the file is fetched once."""
+    pg = Page(browser, NARROW)
+    hits = []
+    pg.p.on("response", lambda r: hits.append(r.status) if r.url.endswith("fonts/kai.woff2") else None)
+    p = pg.open()
+    check(kai_loaded(p), "HG Kai not loaded")
+    fam = p.eval_on_selector(".title-tiles .han", "(e) => getComputedStyle(e).fontFamily")
+    check(fam.startswith('"HG Kai"'), f"title tiles not using HG Kai: {fam}")
+    check(hits == [200], f"kai.woff2 fetched {hits}")
+    pg.shot("font-home-narrow")
+    pg.close()
+
+
 def t_migration(browser):
     """v1 progress keeps its stars and character levels after the upgrade."""
     pg = Page(browser, WIDE, state=V1_STATE)
@@ -157,12 +176,15 @@ def t_offline(browser):
         p.reload()
         p.wait_for_selector(".home-actions")
         time.sleep(0.1)
-    check(p.evaluate("caches.keys()") == ["hanzi-garden-v3"], f"cache names: {p.evaluate('caches.keys()')}")
-    check(p.evaluate("caches.open('hanzi-garden-v3').then((c) => c.match('data/charsets.json')).then((r) => !!r)"),
+    check(p.evaluate("caches.keys()") == ["hanzi-garden-v4"], f"cache names: {p.evaluate('caches.keys()')}")
+    check(p.evaluate("caches.open('hanzi-garden-v4').then((c) => c.match('data/charsets.json')).then((r) => !!r)"),
           "charsets.json not in the service worker cache")
+    check(p.evaluate("caches.open('hanzi-garden-v4').then((c) => c.match('fonts/kai.woff2')).then((r) => !!r)"),
+          "kai.woff2 not in the service worker cache")
     pg.ctx.set_offline(True)
     p.reload()
     p.wait_for_selector(".home-actions", timeout=10000)
+    check(kai_loaded(p), "Kai font not available offline")
     pg.ctx.set_offline(False)
     pg.close()
 
@@ -638,6 +660,7 @@ def t_switch(browser):
 
 CHECKS = {
     "load": t_load,
+    "font": t_font,
     "migration": t_migration,
     "offline": t_offline,
     "games34": t_games_3_4,
