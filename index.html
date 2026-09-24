@@ -297,7 +297,7 @@ button:focus-visible { outline: 4px solid var(--sky); outline-offset: 3px; }
 <body>
 <div id="app"></div>
 
-<!-- All learner-facing text and character data lives in this JSON block. Add new stages by appending to "stages". -->
+<!-- All learner-facing UI text lives in this JSON block. Character libraries are loaded from data/charsets.json. -->
 <script type="application/json" id="content">
 {
   "ui": {
@@ -367,70 +367,15 @@ button:focus-visible { outline: 4px solid var(--sky); outline-offset: 3px; }
     "syncCloud": "学习进度保存在您的 claude.ai 账号里，两台电脑都能接着学。",
     "syncLocal": "学习进度保存在这台设备的浏览器里。",
     "noVoice": "没有找到中文语音。建议用 Edge 浏览器打开；或在 Windows 设置 → 时间和语言 → 语言和区域 里添加中文（简体）并安装语音包。",
-    "close": "关闭"
+    "close": "关闭",
+    "loadFail": "字库没有加载成功，请连上网络再试一次",
+    "reload": "再试一次"
   },
   "praise": ["太棒了！", "真厉害！", "答对啦！", "你真棒！", "好聪明！", "对啦对啦！"],
   "retry": ["再试试！", "没关系，再找找", "差一点点！"],
   "flowers": ["🌷", "🌻", "🌸", "🌼", "🌹", "🌺", "💐"],
   "bugs": ["🦋", "🐝", "🐞", "🐛"],
-  "garden": ["🌱", "🌷", "🌻", "🌳", "🍄", "🐞", "🌼", "🦋", "🐝", "🌸", "🐸", "🍓", "🐌", "🌵", "🐿️", "🌹"],
-  "stages": [
-    {
-      "name": "第一阶段：100 个常用字",
-      "groups": [
-        { "name": "数一数", "icon": "🔢", "chars": [
-          ["一", "yī", "一个", "🍓"], ["二", "èr", "二十", "🍓🍓"], ["三", "sān", "三天", "🍓🍓🍓"],
-          ["四", "sì", "四个", "🍓🍓🍓🍓"], ["五", "wǔ", "五月", "🍓🍓🍓🍓🍓"], ["六", "liù", "六个", "🍓🍓🍓🍓🍓🍓"],
-          ["七", "qī", "七个", "🍓🍓🍓🍓🍓🍓🍓"], ["八", "bā", "八月", "🍓🍓🍓🍓🍓🍓🍓🍓"], ["九", "jiǔ", "九个", "🍓🍓🍓🍓🍓🍓🍓🍓🍓"],
-          ["十", "shí", "十个", "🍓🍓🍓🍓🍓🍓🍓🍓🍓🍓"] ] },
-        { "name": "大自然", "icon": "⛰️", "chars": [
-          ["日", "rì", "日出", "☀️"], ["月", "yuè", "月亮", "🌙"], ["山", "shān", "大山", "⛰️"],
-          ["水", "shuǐ", "喝水", "💧"], ["火", "huǒ", "火苗", "🔥"], ["木", "mù", "木头", "🪵"],
-          ["土", "tǔ", "泥土", "🟫"], ["石", "shí", "石头", "🪨"], ["田", "tián", "田地", "🌾"],
-          ["天", "tiān", "天空", "🌤️"] ] },
-        { "name": "我的身体", "icon": "🧒", "chars": [
-          ["人", "rén", "大人", "🧍"], ["口", "kǒu", "口水", "👄"], ["手", "shǒu", "小手", "✋"],
-          ["目", "mù", "目光", "👁️"], ["耳", "ěr", "耳朵", "👂"], ["足", "zú", "足球", "🦶"],
-          ["牙", "yá", "牙齿", "🦷"], ["心", "xīn", "开心", "❤️"], ["头", "tóu", "头发", "🧑"],
-          ["鼻", "bí", "鼻子", "👃"] ] },
-        { "name": "动物朋友", "icon": "🐾", "chars": [
-          ["马", "mǎ", "小马", "🐴"], ["牛", "niú", "牛奶", "🐮"], ["羊", "yáng", "小羊", "🐑"],
-          ["鸟", "niǎo", "小鸟", "🐦"], ["鱼", "yú", "金鱼", "🐟"], ["虫", "chóng", "虫子", "🐛"],
-          ["猫", "māo", "小猫", "🐱"], ["狗", "gǒu", "小狗", "🐶"], ["兔", "tù", "兔子", "🐰"],
-          ["猪", "zhū", "小猪", "🐷"] ] },
-        { "name": "大小方向", "icon": "🧭", "chars": [
-          ["大", "dà", "大象", "🐘"], ["小", "xiǎo", "小草", "🐜"], ["上", "shàng", "上山", "⬆️"],
-          ["下", "xià", "下雨", "⬇️"], ["左", "zuǒ", "左手", "⬅️"], ["右", "yòu", "右手", "➡️"],
-          ["中", "zhōng", "中间", "🎯"], ["多", "duō", "很多", "🍎🍎🍎🍎🍎"], ["少", "shǎo", "很少", "🍎"],
-          ["高", "gāo", "高高", "🦒"] ] },
-        { "name": "我的家", "icon": "🏠", "chars": [
-          ["爸", "bà", "爸爸", "👨"], ["妈", "mā", "妈妈", "👩"], ["哥", "gē", "哥哥", "👦"],
-          ["姐", "jiě", "姐姐", "👧"], ["弟", "dì", "弟弟", "🧒"], ["妹", "mèi", "妹妹", "👶"],
-          ["我", "wǒ", "我们", "🙋"], ["你", "nǐ", "你好", "👉"], ["家", "jiā", "回家", "🏠"],
-          ["好", "hǎo", "好人", "👍"] ] },
-        { "name": "天气和植物", "icon": "🌈", "chars": [
-          ["云", "yún", "白云", "☁️"], ["雨", "yǔ", "下雨", "🌧️"], ["风", "fēng", "大风", "🌬️"],
-          ["雪", "xuě", "雪花", "❄️"], ["星", "xīng", "星星", "⭐"], ["花", "huā", "红花", "🌸"],
-          ["草", "cǎo", "小草", "🌿"], ["叶", "yè", "树叶", "🍃"], ["果", "guǒ", "苹果", "🍎"],
-          ["瓜", "guā", "西瓜", "🍉"] ] },
-        { "name": "生活用品", "icon": "🎒", "chars": [
-          ["米", "mǐ", "大米", "🍚"], ["门", "mén", "开门", "🚪"], ["车", "chē", "汽车", "🚗"],
-          ["书", "shū", "看书", "📖"], ["衣", "yī", "衣服", "👕"], ["笔", "bǐ", "铅笔", "✏️"],
-          ["球", "qiú", "皮球", "⚽"], ["伞", "sǎn", "雨伞", "☂️"], ["灯", "dēng", "电灯", "💡"],
-          ["船", "chuán", "小船", "⛵"] ] },
-        { "name": "动起来", "icon": "🏃", "chars": [
-          ["走", "zǒu", "走路", "🚶"], ["跑", "pǎo", "跑步", "🏃"], ["吃", "chī", "吃饭", "😋"],
-          ["看", "kàn", "看见", "👀"], ["说", "shuō", "说话", "💬"], ["飞", "fēi", "飞机", "✈️"],
-          ["坐", "zuò", "坐下", "🪑"], ["哭", "kū", "大哭", "😢"], ["笑", "xiào", "大笑", "😄"],
-          ["睡", "shuì", "睡觉", "😴"] ] },
-        { "name": "颜色和时间", "icon": "🎨", "chars": [
-          ["红", "hóng", "红色", "🔴"], ["黄", "huáng", "黄色", "🟡"], ["蓝", "lán", "蓝色", "🔵"],
-          ["绿", "lǜ", "绿色", "🟢"], ["白", "bái", "白色", "⚪"], ["黑", "hēi", "黑色", "⚫"],
-          ["开", "kāi", "开灯", "🔓"], ["关", "guān", "关门", "🔒"], ["早", "zǎo", "早上", "🌅"],
-          ["晚", "wǎn", "晚上", "🌃"] ] }
-      ]
-    }
-  ]
+  "garden": ["🌱", "🌷", "🌻", "🌳", "🍄", "🐞", "🌼", "🦋", "🐝", "🌸", "🐸", "🍓", "🐌", "🌵", "🐿️", "🌹"]
 }
 </script>
 
@@ -443,16 +388,22 @@ button:focus-visible { outline: 4px solid var(--sky); outline-offset: 3px; }
   const UI = DATA.ui;
   document.title = UI.appTitle;
 
-  const GROUPS = [];
-  DATA.stages.forEach((stage, si) => stage.groups.forEach((g) => {
-    GROUPS.push({
-      stageIndex: si, stageName: stage.name, name: g.name, icon: g.icon,
-      chars: g.chars.map(([c, py, word, pic]) => ({ c, py, word, pic })),
+  // Character libraries come from data/charsets.json (see boot()). Filled once before the first screen renders.
+  const LIBS = [];        // ordered: age-3-4 ... age-6-7
+  const CHAR = new Map(); // char -> { c, py, w, pic, lib, group }
+  const ALL = [];
+  const GROUPS = [];      // flat list of { lib, gi, name, icon, chars } across libraries
+  function indexCharsets(data) {
+    data.libraries.forEach((lib, li) => {
+      LIBS.push(lib);
+      lib.groups.forEach((g, gi) => {
+        GROUPS.push({ lib: li, gi, name: g.name, icon: g.icon, chars: g.chars });
+        g.chars.forEach((x) => CHAR.set(x.c, { ...x, lib: li, group: gi }));
+      });
     });
-  }));
-  const CHAR = new Map();
-  GROUPS.forEach((g, gi) => g.chars.forEach((x) => { if (!CHAR.has(x.c)) CHAR.set(x.c, { ...x, group: gi }); }));
-  const ALL = [...CHAR.keys()];
+    ALL.push(...CHAR.keys());
+  }
+  const currentLib = () => LIBS.find((l) => l.id === state.settings.libraryId) || LIBS[0];
 
   // ---------- helpers ----------
   const fmt = (tpl, o) => tpl.replace(/\{(\w+)\}/g, (_, k) => (o[k] ?? ''));
@@ -498,12 +449,21 @@ button:focus-visible { outline: 4px solid var(--sky); outline-offset: 3px; }
   // Review interval after reaching each level (level 0..5).
   const INTERVALS = [0, 4 * HOUR, 1 * DAY, 3 * DAY, 7 * DAY, 16 * DAY];
 
-  const defaultState = () => ({ v: 1, stars: 0, chars: {}, settings: { rate: 0.8, voice: '', unlockAll: false, sessionMin: 15 }, updatedAt: 0 });
+  // Storage key stays at -v1: the per-character progress format is unchanged, so v1 progress carries over.
+  const defaultState = () => ({
+    v: 2, stars: 0, chars: {},
+    settings: { rate: 0.8, voice: '', unlockAll: false, sessionMin: 15, libraryId: 'age-3-4', showPinyin: false },
+    newLog: { day: '', count: 0 }, // new characters introduced by daily practice today
+    updatedAt: 0,
+  });
   function normalize(s) {
     const d = defaultState();
     const out = Object.assign(d, s || {});
+    // Missing v2 settings (libraryId, showPinyin) fall back to the defaults above.
     out.settings = Object.assign(defaultState().settings, (s && s.settings) || {});
     out.chars = out.chars || {};
+    out.newLog = out.newLog || { day: '', count: 0 };
+    out.v = 2;
     return out;
   }
   function loadLocal() {
@@ -613,7 +573,7 @@ button:focus-visible { outline: 4px solid var(--sky); outline-offset: 3px; }
     u.pitch = 1.1;
     speakTimer = setTimeout(() => speechSynthesis.speak(u), 60);
   }
-  const wordOf = (c) => CHAR.get(c).word;
+  const wordOf = (c) => CHAR.get(c).w;
   const sayChar = (c) => speak(fmt(UI.sayChar, { c, w: wordOf(c) }));
 
   // ---------- sound effects ----------
@@ -831,10 +791,10 @@ button:focus-visible { outline: 4px solid var(--sky); outline-offset: 3px; }
     const screen = h('div', { class: 'screen' });
     let lastStage = -1, grid = null;
     GROUPS.forEach((g, gi) => {
-      if (g.stageIndex !== lastStage) {
-        lastStage = g.stageIndex;
+      if (g.lib !== lastStage) {
+        lastStage = g.lib;
         grid = h('div', { class: 'groups' });
-        screen.append(h('h2', { class: 'stage-h' }, g.stageName), grid);
+        screen.append(h('h2', { class: 'stage-h' }, LIBS[g.lib].name), grid);
       }
       const open = unlocked(gi);
       grid.append(h('button', {
@@ -952,7 +912,7 @@ button:focus-visible { outline: 4px solid var(--sky); outline-offset: 3px; }
           h('div', { class: 'learn-info' },
             emo(x.pic, 'learn-pic' + (isMany(x.pic) ? ' many' : '')),
             h('div', { class: 'pinyin' }, x.py),
-            wordNode(x.word, x.c),
+            wordNode(x.w, x.c),
             h('button', { class: 'btn sun', onclick: () => sayChar(x.c) }, emo('🔊'), UI.hear)),
           h('div', {},
             box,
@@ -1000,7 +960,7 @@ button:focus-visible { outline: 4px solid var(--sky); outline-offset: 3px; }
       const x = CHAR.get(it.c);
       const opts = shuffle([it.c, ...distractors(it.c, cfg.pool, 3)]);
       let wrong = 0, locked = false;
-      const promptText = fmt(UI.promptListen, { c: it.c, w: x.word });
+      const promptText = fmt(UI.promptListen, { c: it.c, w: x.w });
       if (it.m === 'listen') {
         prompt.replaceChildren(
           h('button', { class: 'speaker', 'aria-label': UI.hear, onclick: () => speak(promptText) }, emo('🔊')),
@@ -1357,8 +1317,32 @@ button:focus-visible { outline: 4px solid var(--sky); outline-offset: 3px; }
   }
 
   // ---------- boot ----------
-  show(renderHome);
-  initRemote();
+  // Shows the title tiles while data/charsets.json loads (served from the service worker cache when offline).
+  function renderLoading() {
+    app.replaceChildren(h('div', { class: 'screen' }, h('div', { class: 'home' },
+      h('div', { class: 'title-tiles', role: 'heading', 'aria-level': '1', 'aria-label': UI.appTitle },
+        [...UI.appTitle].map((ch) => tzg(ch))))));
+  }
+  function renderLoadFail() {
+    app.replaceChildren(h('div', { class: 'screen' }, h('div', { class: 'end' },
+      emo('📡', 'hero'), h('p', {}, UI.loadFail),
+      h('div', { class: 'row' }, h('button', { class: 'btn sun', onclick: boot }, emo('🔁'), UI.reload)))));
+  }
+  async function boot() {
+    renderLoading();
+    try {
+      const res = await fetch('data/charsets.json');
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      indexCharsets(await res.json());
+    } catch (e) {
+      console.warn('charsets unavailable', e);
+      renderLoadFail();
+      return;
+    }
+    show(renderHome);
+    initRemote(); // after charsets load: a newer cloud copy re-renders the home screen
+  }
+  boot();
 })();
 </script>
 <script>
