@@ -446,7 +446,7 @@ button:focus-visible { outline: 4px solid var(--sky); outline-offset: 3px; }
   const SEG = typeof Intl !== 'undefined' && Intl.Segmenter ? new Intl.Segmenter('en', { granularity: 'grapheme' }) : null;
   const picCount = (pic) => (SEG ? [...SEG.segment(pic)].length : [...pic.replace(/[\uFE0F\u200D]/g, '')].length);
   const isMany = (pic) => !!pic && picCount(pic) >= 2;
-  // Word with every occurrence of the character replaced by a mark (爸爸 -> ○○), so the answer is never left showing.
+  // Word with every occurrence of the character replaced by a mark (a doubled word gets two marks), so the answer never shows.
   const blankWord = (w, c, mark) => w.split(c).join(mark);
   const memPicClass = (pic) => { const n = picCount(pic); return n > 4 ? 'many' : (n > 1 ? 'few' : ''); };
 

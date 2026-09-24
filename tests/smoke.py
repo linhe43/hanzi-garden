@@ -23,15 +23,43 @@ NARROW = {"width": 390, "height": 844}
 LS_KEY = "hanzi-garden-progress-v1"
 DAY = 24 * 3600 * 1000
 
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+MARK = "\u25cb"  # blank mark on listening cards
+
+# All Chinese text comes from the app's own data: UI strings from index.html, characters from charsets.json.
+with open(os.path.join(ROOT, "index.html"), encoding="utf-8") as f:
+    _html = f.read()
+_a = _html.index('id="content">') + len('id="content">')
+UI = json.loads(_html[_a:_html.index("</script>", _a)])["ui"]
+with open(os.path.join(ROOT, "data", "charsets.json"), encoding="utf-8") as f:
+    DATA = json.load(f)
+LIBS = DATA["libraries"]
+
+
+def char(li, gi, k):
+    """Character record k of group gi in library li."""
+    return LIBS[li]["groups"][gi]["chars"][k]
+
+
+def fmt(tpl, **kw):
+    for k, v in kw.items():
+        tpl = tpl.replace("{" + k + "}", str(v))
+    return tpl
+
+
+# v1 characters used below: the first three of group 1 and two of group 2 in the 3-4 library (the v1 set).
+C1, C2, C3 = (char(0, 0, k)["c"] for k in range(3))
+C_MOUNTAIN, C_WATER = char(0, 1, 2)["c"], char(0, 1, 3)["c"]
+
 # v1 progress as the old app wrote it: 12 stars, a few characters at different levels.
 V1_STATE = {
     "v": 1, "stars": 12, "updatedAt": 1,
     "settings": {"rate": 0.8, "voice": "", "unlockAll": False, "sessionMin": 15},
     "chars": {
-        "一": {"l": 5, "d": 9e15, "n": True, "r": 9, "w": 0},
-        "二": {"l": 4, "d": 9e15, "n": True, "r": 6, "w": 1},
-        "山": {"l": 2, "d": 9e15, "n": True, "r": 3, "w": 0},
-        "水": {"l": 0, "d": 0, "n": True, "r": 0, "w": 2},
+        C1: {"l": 5, "d": 9e15, "n": True, "r": 9, "w": 0},
+        C2: {"l": 4, "d": 9e15, "n": True, "r": 6, "w": 1},
+        C_MOUNTAIN: {"l": 2, "d": 9e15, "n": True, "r": 3, "w": 0},
+        C_WATER: {"l": 0, "d": 0, "n": True, "r": 0, "w": 2},
     },
 }
 
@@ -113,8 +141,8 @@ def t_migration(browser):
     p.wait_for_selector(".box-row")
     cls = p.evaluate("""() => Object.fromEntries([...document.querySelectorAll('.box-row .tzg')]
         .map((t) => [t.textContent, t.className]))""")
-    check("lv-d" in cls["一"] and "lv-c" in cls["二"] and "lv-b" in cls["山"] and "lv-a" in cls["水"], f"box colors wrong: {cls['一']}, {cls['二']}")
-    check("unseen" in cls["三"], "unseen character not dimmed")
+    check("lv-d" in cls[C1] and "lv-c" in cls[C2] and "lv-b" in cls[C_MOUNTAIN] and "lv-a" in cls[C_WATER], f"box colors wrong: {cls[C1]}, {cls[C2]}")
+    check("unseen" in cls[C3], "unseen character not dimmed")
     pg.close()
 
 
@@ -188,9 +216,7 @@ def t_games_3_4(browser):
 
 
 def charsets():
-    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    with open(os.path.join(root, "data", "charsets.json"), encoding="utf-8") as f:
-        return json.load(f)
+    return DATA
 
 
 def open_settings(p):
@@ -206,8 +232,7 @@ def pick_library(p, lib_id):
     p.wait_for_selector(".home-actions")
 
 
-GAME_LABEL = {"learn": "学新字", "listen": "听音找字", "picture": "看图找字", "memory": "翻牌配对",
-              "flowers": "浇花开花", "fill": "选字填词"}
+GAME_LABEL = {k: UI[k] for k in ("learn", "listen", "picture", "memory", "flowers", "fill")}
 BUILT_GAMES = {"learn", "listen", "picture", "memory", "flowers", "fill"}
 
 
@@ -232,7 +257,7 @@ def t_libraries(browser):
         p.wait_for_selector(".gcard")
         check(p.inner_text(".stage-h") == lib["name"], "map title is not the library name")
         check(p.locator(".gcard").count() == len(lib["groups"]), "map lists other libraries' groups")
-        check(p.inner_text(".gcard .num") == "第1关", "level numbers do not restart per library")
+        check(p.inner_text(".gcard .num") == fmt(UI["levelN"], n=1), "level numbers do not restart per library")
         locked = p.eval_on_selector_all(".gcard", "(cs) => cs.map((c) => c.classList.contains('locked'))")
         check(not locked[0] and all(locked[1:]), f"unlock state wrong for a fresh library: {locked[:3]}")
         pg.shot(f"map-{lib['id']}")
@@ -246,11 +271,12 @@ def t_libraries(browser):
         p.wait_for_selector(".home-actions")
     # Library defaults can still be changed by hand afterwards.
     open_settings(p)
-    p.select_option(".panel label:has-text('每次学习时间') select", "30")
+    session_sel = f".panel label:has-text('{UI['sessionLen']}') select"
+    p.select_option(session_sel, "30")
     p.click(".panel label.inline input >> nth=0")
     p.click(".panel .btn.leaf")
     open_settings(p)
-    check(p.input_value(".panel label:has-text('每次学习时间') select") == "30", "manual session length lost")
+    check(p.input_value(session_sel) == "30", "manual session length lost")
     check(p.is_checked(".panel label.inline input >> nth=0") is False, "manual pinyin toggle lost")  # 6-7 default is on
     pg.close()
 
@@ -290,7 +316,7 @@ def learn_chars(p):
     while True:
         seen.append(p.inner_text(".learn-box .han"))
         nxt = p.locator(".learn-nav .btn").last
-        if "学完啦" in nxt.inner_text():
+        if UI["done"] in nxt.inner_text():
             return seen
         nxt.click()
 
@@ -313,12 +339,12 @@ def t_daily(browser):
     pg.close()
 
     # 2) Review is global: on 4-5 with today's new allowance used up, a due 3-4 character is still reviewed.
-    pg = Page(browser, WIDE, state=seeded("age-4-5", {"水": {"l": 2, "d": 0, "n": True, "r": 2, "w": 0}}, new_today=1))
+    pg = Page(browser, WIDE, state=seeded("age-4-5", {C_WATER: {"l": 2, "d": 0, "n": True, "r": 2, "w": 0}}, new_today=1))
     p = pg.open()
     p.click(".home-actions .btn.sun")
     p.wait_for_selector(".options")
     opts = p.eval_on_selector_all(".opt", "(os) => os.map((o) => o.getAttribute('aria-label'))")
-    check("水" in opts and p.locator(".learn-card").count() == 0, f"due 3-4 character not reviewed on 4-5: {opts}")
+    check(C_WATER in opts and p.locator(".learn-card").count() == 0, f"due 3-4 character not reviewed on 4-5: {opts}")
     pg.close()
 
     # 3) Finished library: new characters come from the next library; the home note shows once.
@@ -345,21 +371,21 @@ def t_nopic(browser):
     p = pg.open()
     pick_library(p, "age-5-6")
     open_group(p, 0)
-    check("看图找字" not in act_labels(p), "picture quiz shown for a group without pictures")
-    open_act(p, "学新字")
+    check(UI["picture"] not in act_labels(p), "picture quiz shown for a group without pictures")
+    open_act(p, UI["learn"])
     check(p.locator(".learn-word").count() == 1 and p.locator(".learn-pic").count() == 0, "learn card should show the big word")
     check(p.locator(".learn-info .word").count() == 1, "word shown twice on the learn card")
     pg.shot("learn-56")
     back(p)
-    open_act(p, "翻牌配对")
+    open_act(p, UI["memory"])
     says = p.eval_on_selector_all(".mcard .say", "(ss) => ss.map((s) => s.textContent)")
     hans = p.eval_on_selector_all(".mcard .front .han", "(ss) => ss.map((s) => s.textContent)")
     check(len(says) == 4 and len(hans) == 4, f"round 1 should have 4 listening + 4 character cards: {says} {hans}")
     for c in hans:
-        check(any("○" in s and c not in s.replace("🔊", "") for s in says), f"listening card leaks the character {c}: {says}")
+        check(any(MARK in s and c not in s for s in says), f"listening card leaks the character {c}: {says}")
     pg.shot("memory-56")
     back(p)
-    open_act(p, "听音找字")
+    open_act(p, UI["listen"])
     opts = p.eval_on_selector_all(".opt", "(os) => os.map((o) => o.getAttribute('aria-label'))")
     check(len(set(opts)) == 4, f"listen quiz needs 4 options: {opts}")
     pg.close()
@@ -374,7 +400,7 @@ def t_nopic(browser):
     p.click(".panel label.inline >> nth=1")  # unlock all groups
     p.click(".panel .btn.leaf")
     open_group(p, gi)
-    open_act(p, "看图找字")
+    open_act(p, UI["picture"])
     rounds = 0
     while p.locator(".prompt .big-pic").count():
         rounds += 1
@@ -403,12 +429,12 @@ def t_fill(browser):
     p = pg.open()
     pick_library(p, "age-5-6")
     open_group(p, 0)
-    open_act(p, "选字填词")
+    open_act(p, UI["fill"])
     for _ in range(len(group)):
         p.wait_for_selector(".fill-word")
         shown = p.eval_on_selector(".fill-word", "(w) => [...w.children].map((k) => k.classList.contains('tzg') ? '_' : k.textContent).join('')")
         opts = p.eval_on_selector_all(".opt", "(os) => os.map((o) => o.getAttribute('aria-label'))")
-        # 我的 and 我们 both show as 我_; the answer is the option whose word matches.
+        # Two words can blank to the same display (X+A, X+B both show X_); the answer is the one offered.
         answer = next(x for x in group if x["w"].replace(x["c"], "_") == shown and x["c"] in opts)
         c = answer["c"]
         check(c in opts and len(set(opts)) == 4, f"options {opts} for {shown}")
@@ -426,34 +452,36 @@ def t_fill(browser):
 
 def t_speech(browser):
     """Speech template follows the character's own library; the pinyin toggle controls the learn card."""
-    # On 5-6, reviewing 木 (3-4, wordOf) still says "木，木头的木"; 了 (5-6, charWord) says "了，好了".
-    pg = Page(browser, WIDE, state=seeded("age-5-6", {"木": {"l": 2, "d": 0, "n": True, "r": 2, "w": 0}}, new_today=1))
+    # On 5-6, reviewing a 3-4 character (wordOf) still uses the wordOf phrasing; a 5-6 character uses charWord.
+    old, new = char(0, 1, 5), char(2, 0, 2)
+    pg = Page(browser, WIDE, state=seeded("age-5-6", {old["c"]: {"l": 2, "d": 0, "n": True, "r": 2, "w": 0}}, new_today=1))
     p = pg.open()
     p.click(".home-actions .btn.sun")
     p.wait_for_selector(".options")
     time.sleep(0.6)
-    p.click('.opt[aria-label="木"]')
+    p.click(f'.opt[aria-label="{old["c"]}"]')
     time.sleep(0.3)
     said = pg.said()
-    check("木，木头的木" in said, f"wordOf template not used for 木: {said}")
-    check(all("好了" not in t for t in said), "wrong character spoken")
+    check(fmt(UI["sayCharWordOf"], c=old["c"], w=old["w"]) in said, f"wordOf template not used for {old['c']}: {said}")
+    check(all(new["w"] not in t for t in said), "wrong character spoken")
     p.goto(BASE)
     p.wait_for_selector(".home-actions")
     open_group(p, 0)
     pg.said()
-    p.click('.char-row .tzg:has-text("了")')
+    p.click(f'.char-row .tzg:has-text("{new["c"]}")')
     time.sleep(0.3)
-    check("了，好了" in pg.said(), "charWord template not used for 了")
-    open_act(p, "听音找字")
+    check(fmt(UI["sayCharCharWord"], c=new["c"], w=new["w"]) in pg.said(), f"charWord template not used for {new['c']}")
+    open_act(p, UI["listen"])
     time.sleep(0.6)
-    check(any(t.startswith("找一找：") for t in pg.said()), "charWord prompt template not used")
+    lead = UI["promptCharWord"].split("{")[0]
+    check(any(t.startswith(lead) for t in pg.said()), "charWord prompt template not used")
     pg.close()
 
     # Pinyin: off by default on 3-4, on after the toggle.
     pg = Page(browser, WIDE)
     p = pg.open()
     open_group(p, 0)
-    open_act(p, "学新字")
+    open_act(p, UI["learn"])
     check(p.locator(".learn-card .pinyin").count() == 0, "pinyin shown while the toggle is off")
     p.goto(BASE)
     p.wait_for_selector(".home-actions")
@@ -461,7 +489,7 @@ def t_speech(browser):
     p.click(".panel label.inline input >> nth=0")
     p.click(".panel .btn.leaf")
     open_group(p, 0)
-    open_act(p, "学新字")
+    open_act(p, UI["learn"])
     check(p.locator(".learn-card .pinyin").count() == 1, "pinyin hidden while the toggle is on")
     pg.close()
 
@@ -469,13 +497,13 @@ def t_speech(browser):
 def t_box(browser):
     """Treasure box: total line, one tab per library opening on the current one, long press shows pinyin."""
     rec = {"l": 3, "d": 9e15, "n": True, "r": 3, "w": 0}
-    chars = {c: dict(rec) for c in ["一", "二", "山", "是", "不"]}
+    chars = {c: dict(rec) for c in [C1, C2, C_MOUNTAIN, char(2, 0, 0)["c"], char(2, 0, 1)["c"]]}
     for size, name in ((WIDE, "wide"), (NARROW, "narrow")):
         pg = Page(browser, size, state=seeded("age-5-6", chars))
         p = pg.open()
         p.click(".home-actions .btn.berry")
         p.wait_for_selector(".box-tabs")
-        check(p.inner_text(".box-total") == "一共认识 5 个字 / 1000", f"total line: {p.inner_text('.box-total')}")
+        check(p.inner_text(".box-total") == fmt(UI["boxTotal"], n=5, m=1000), f"total line: {p.inner_text('.box-total')}")
         tabs = p.eval_on_selector_all(".box-tabs .btn", "(bs) => bs.map((b) => [b.getAttribute('aria-selected'), b.innerText])")
         check(len(tabs) == 4 and tabs[2][0] == "true", f"current library tab not selected: {tabs}")
         check("2 / 300" in tabs[2][1] and "3 / 150" in tabs[0][1], f"tab counts wrong: {tabs}")
@@ -489,7 +517,7 @@ def t_box(browser):
         p.mouse.move(box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
         p.mouse.down()
         time.sleep(0.8)
-        check(p.locator(".py-pop").count() == 1 and p.inner_text(".py-pop") == "yī", "long press did not show pinyin")
+        check(p.locator(".py-pop").count() == 1 and p.inner_text(".py-pop") == char(0, 0, 0)["py"], "long press did not show pinyin")
         pg.said()
         p.mouse.up()
         time.sleep(0.2)
@@ -504,7 +532,7 @@ def t_kept(browser):
     p = pg.p
     p.goto(BASE)
     p.wait_for_selector(".end .parent")
-    check("今天学得真棒" in p.inner_text(".end"), "rest screen missing after the time limit")
+    check(UI["restTitle"] in p.inner_text(".end"), "rest screen missing after the time limit")
     pg.shot("rest-narrow")
     p.focus(".end .parent")
     p.keyboard.press("Shift+Enter")
@@ -522,7 +550,7 @@ def t_kept(browser):
     pg = Page(browser, WIDE, reduced_motion="reduce")
     p = pg.open()
     open_group(p, 0)
-    open_act(p, "听音找字")
+    open_act(p, UI["listen"])
     p.wait_for_selector(".opt")
     for i in range(4):
         if p.locator(".opt.right").count():
