@@ -226,9 +226,22 @@ def open_settings(p):
     p.wait_for_selector(".panel")
 
 
+def settings_select(p, label_key):
+    return f".panel label:has-text('{UI[label_key]}') select"
+
+
 def pick_library(p, lib_id):
+    """Pick a library: the panel stays open with the library defaults filled in, then confirm closes it."""
     open_settings(p)
     p.click(f'.lib-card[data-lib="{lib_id}"]')
+    time.sleep(0.2)
+    check(p.locator(".panel").count() == 1, "settings closed right after picking a library")
+    prof = next(l for l in LIBS if l["id"] == lib_id)["profile"]
+    check(p.input_value(settings_select(p, "dailyNew")) == str(prof["dailyNew"]), "daily new default not filled in")
+    check(p.input_value(settings_select(p, "sessionLen")) == str(prof["sessionMin"]), "session default not filled in")
+    check(p.is_checked(".panel label.inline input >> nth=0") == prof["showPinyin"], "pinyin default not filled in")
+    p.click(f".panel .btn.leaf:has-text('{UI['confirm']}')")
+    p.wait_for_selector(".panel", state="detached")
     p.wait_for_selector(".home-actions")
 
 
@@ -271,7 +284,7 @@ def t_libraries(browser):
         p.wait_for_selector(".home-actions")
     # Library defaults can still be changed by hand afterwards.
     open_settings(p)
-    session_sel = f".panel label:has-text('{UI['sessionLen']}') select"
+    session_sel = settings_select(p, "sessionLen")
     p.select_option(session_sel, "30")
     p.click(".panel label.inline input >> nth=0")
     p.click(".panel .btn.leaf")
@@ -561,6 +574,28 @@ def t_kept(browser):
     pg.close()
 
 
+def t_daily_new(browser):
+    """The parent's daily-new setting overrides the library default and survives reopening."""
+    pg = Page(browser, NARROW)
+    p = pg.open()
+    open_settings(p)
+    p.select_option(settings_select(p, "dailyNew"), "3")
+    pg.shot("settings-daily-new")
+    p.click(".panel .btn.leaf")
+    open_settings(p)
+    check(p.input_value(settings_select(p, "dailyNew")) == "3", "daily new setting lost")
+    p.click(".panel .btn.leaf")
+    p.click(".home-actions .btn.sun")
+    p.wait_for_selector(".learn-card")
+    check(learn_chars(p) == [char(0, 0, k)["c"] for k in range(3)], "daily practice did not teach 3 new characters")
+    p.goto(BASE)
+    p.wait_for_selector(".home-actions")
+    p.click(".home-actions .btn.sun")
+    time.sleep(0.5)
+    check(p.locator(".learn-card").count() == 0, "more new characters than the daily setting")
+    pg.close()
+
+
 CHECKS = {
     "load": t_load,
     "migration": t_migration,
@@ -569,6 +604,7 @@ CHECKS = {
     "libraries": t_libraries,
     "unlock": t_unlock,
     "daily": t_daily,
+    "dailynew": t_daily_new,
     "nopic": t_nopic,
     "fill": t_fill,
     "speech": t_speech,

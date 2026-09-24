@@ -147,11 +147,12 @@ state.v = 2;
 - 卡片显示：字库名、简介、字数、已学进度（例如「已认识 42 / 150」）。
 - 选中某个字库时：
   1. `settings.libraryId = lib.id`
-  2. `settings.sessionMin = lib.profile.sessionMin`
-  3. `settings.showPinyin = lib.profile.showPinyin`
-  4. `save()`，然后关闭面板并重新渲染首页。
+  2. `settings.dailyNew = lib.profile.dailyNew`
+  3. `settings.sessionMin = lib.profile.sessionMin`
+  4. `settings.showPinyin = lib.profile.showPinyin`
+  5. `save()`。面板**不关闭**，下面的控件立即显示这个字库的默认值，家长可以接着改，点「确认」后关闭面板并重新渲染首页。
 
-另外加一个「显示拼音」开关，绑定 `settings.showPinyin`。家长切换字库后，可以再单独改时长和拼音开关。
+字库卡片下面依次是：「每天学几个新字」（1–5，绑定 `settings.dailyNew`，为空时用当前字库的 `profile.dailyNew`）、「每次学习时间」、「显示拼音」开关（绑定 `settings.showPinyin`）。
 
 需要新增的界面文字（放进 `ui`）：
 
@@ -186,7 +187,7 @@ function unlocked(lib, gi) {
 function todayKey() { return new Date().toLocaleDateString('en-CA'); } // YYYY-MM-DD, local time
 function newAllowanceToday() {
   if (state.newLog.day !== todayKey()) state.newLog = { day: todayKey(), count: 0 };
-  return Math.max(0, currentLib().profile.dailyNew - state.newLog.count);
+  return Math.max(0, dailyNewLimit() - state.newLog.count);
 }
 // After the learn cards for fresh characters are shown in daily practice:
 state.newLog.count += fresh.length; save();

@@ -399,6 +399,10 @@ button:focus-visible { outline: 4px solid var(--sky); outline-offset: 3px; }
     "library": "字库",
     "libraryProgress": "已认识 {n} / {m}",
     "showPinyin": "显示拼音",
+    "dailyNew": "每天学几个新字",
+    "dailyNewN": "{n} 个",
+    "dailyNewNote": "「今日练习」每天最多出这么多新字；闯关地图里的「学新字」不受限制。",
+    "confirm": "确认",
     "currentLib": "{name} · {n}/{m}",
     "libraryDone": "这个字库学完啦，家长可以换下一个字库",
     "loadFail": "字库没有加载成功，请连上网络再试一次",
@@ -483,7 +487,7 @@ button:focus-visible { outline: 4px solid var(--sky); outline-offset: 3px; }
   // Storage key stays at -v1: the per-character progress format is unchanged, so v1 progress carries over.
   const defaultState = () => ({
     v: 2, stars: 0, chars: {},
-    settings: { rate: 0.8, voice: '', unlockAll: false, sessionMin: 15, libraryId: 'age-3-4', showPinyin: false },
+    settings: { rate: 0.8, voice: '', unlockAll: false, sessionMin: 15, libraryId: 'age-3-4', showPinyin: false, dailyNew: null },
     newLog: { day: '', count: 0 }, // new characters introduced by daily practice today
     doneNotice: [],                 // library ids whose "library finished" note was already shown
     updatedAt: 0,
@@ -491,7 +495,7 @@ button:focus-visible { outline: 4px solid var(--sky); outline-offset: 3px; }
   function normalize(s) {
     const d = defaultState();
     const out = Object.assign(d, s || {});
-    // Missing v2 settings (libraryId, showPinyin) fall back to the defaults above.
+    // Missing v2 settings (libraryId, showPinyin, dailyNew) fall back to the defaults above.
     out.settings = Object.assign(defaultState().settings, (s && s.settings) || {});
     out.chars = out.chars || {};
     out.newLog = out.newLog || { day: '', count: 0 };
@@ -1111,9 +1115,11 @@ button:focus-visible { outline: 4px solid var(--sky); outline-offset: 3px; }
 
   // ---------- daily practice ----------
   function todayKey() { return new Date().toLocaleDateString('en-CA'); } // YYYY-MM-DD, local time
+  // Parent's choice, or the current library's default when none was made.
+  const dailyNewLimit = () => state.settings.dailyNew || currentLib().profile.dailyNew;
   function newAllowanceToday() {
     if (state.newLog.day !== todayKey()) state.newLog = { day: todayKey(), count: 0 };
-    return Math.max(0, currentLib().profile.dailyNew - state.newLog.count);
+    return Math.max(0, dailyNewLimit() - state.newLog.count);
   }
   // Next unseen characters in order from the current library's unlocked groups.
   // Once the current library is finished, continue with the libraries after it.
@@ -1418,7 +1424,18 @@ button:focus-visible { outline: 4px solid var(--sky); outline-offset: 3px; }
 
   // ---------- parent settings ----------
   function openSettings() {
-    // Library choice: applies that library's default session length and pinyin setting; both stay editable below.
+    // Library choice fills in that library's defaults below; the parent can adjust them and closes with confirm.
+    const newSel = h('select', {}, [1, 2, 3, 4, 5].map((n) =>
+      h('option', { value: String(n), selected: n === dailyNewLimit() }, fmt(UI.dailyNewN, { n }))));
+    newSel.addEventListener('change', () => { state.settings.dailyNew = parseInt(newSel.value, 10); save(); });
+
+    const lenSel = h('select', {}, [10, 15, 20, 30, 0].map((n) =>
+      h('option', { value: String(n), selected: n === (state.settings.sessionMin || 0) }, n ? fmt(UI.minutes, { n }) : UI.noLimit)));
+    lenSel.addEventListener('change', () => { state.settings.sessionMin = parseInt(lenSel.value, 10); save(); });
+
+    const pinyinBox = h('input', { type: 'checkbox', checked: state.settings.showPinyin });
+    pinyinBox.addEventListener('change', () => { state.settings.showPinyin = pinyinBox.checked; save(); });
+
     const libCards = h('div', { class: 'libs', role: 'radiogroup', 'aria-label': UI.library }, LIBS.map((lib) => {
       const b = h('button', { class: 'lib-card', role: 'radio', 'aria-checked': String(lib === currentLib()), 'data-lib': lib.id },
         h('b', {}, lib.name),
@@ -1426,16 +1443,17 @@ button:focus-visible { outline: 4px solid var(--sky); outline-offset: 3px; }
         h('span', { class: 'lib-desc' }, lib.desc));
       b.addEventListener('click', () => {
         state.settings.libraryId = lib.id;
+        state.settings.dailyNew = lib.profile.dailyNew;
         state.settings.sessionMin = lib.profile.sessionMin;
         state.settings.showPinyin = lib.profile.showPinyin;
         save();
-        overlay.remove();
-        show(renderHome);
+        libCards.querySelectorAll('.lib-card').forEach((c) => c.setAttribute('aria-checked', String(c === b)));
+        newSel.value = String(lib.profile.dailyNew);
+        lenSel.value = String(lib.profile.sessionMin);
+        pinyinBox.checked = lib.profile.showPinyin;
       });
       return b;
     }));
-    const pinyinBox = h('input', { type: 'checkbox', checked: state.settings.showPinyin });
-    pinyinBox.addEventListener('change', () => { state.settings.showPinyin = pinyinBox.checked; save(); });
 
     const rateOut = h('span', {}, state.settings.rate.toFixed(2));
     const rate = h('input', { type: 'range', min: '0.5', max: '1.2', step: '0.05', value: String(state.settings.rate) });
@@ -1444,10 +1462,6 @@ button:focus-visible { outline: 4px solid var(--sky); outline-offset: 3px; }
 
     const voiceSel = h('select', {}, zhVoices.map((v) => h('option', { value: v.name, selected: zhVoice && v.name === zhVoice.name }, v.name)));
     voiceSel.addEventListener('change', () => { state.settings.voice = voiceSel.value; pickVoice(); save(); });
-
-    const lenSel = h('select', {}, [10, 15, 20, 30, 0].map((n) =>
-      h('option', { value: String(n), selected: n === (state.settings.sessionMin || 0) }, n ? fmt(UI.minutes, { n }) : UI.noLimit)));
-    lenSel.addEventListener('change', () => { state.settings.sessionMin = parseInt(lenSel.value, 10); save(); });
 
     const unlock = h('input', { type: 'checkbox', checked: state.settings.unlockAll });
     unlock.addEventListener('change', () => { state.settings.unlockAll = unlock.checked; save(); });
@@ -1470,16 +1484,17 @@ button:focus-visible { outline: 4px solid var(--sky); outline-offset: 3px; }
       h('div', { class: 'panel', role: 'dialog', 'aria-modal': 'true' },
         h('h2', {}, UI.settings),
         h('div', { class: 'libs-wrap' }, h('p', { class: 'note' }, UI.library), libCards),
+        h('label', {}, UI.dailyNew, newSel, h('span', { class: 'note' }, UI.dailyNewNote)),
+        h('label', {}, UI.sessionLen, lenSel),
         h('label', { class: 'inline' }, pinyinBox, UI.showPinyin),
         h('label', {}, h('span', {}, UI.rate, ' ', rateOut), rate),
         zhVoices.length
           ? h('label', {}, UI.voice, voiceSel)
           : h('p', { class: 'note' }, UI.noVoice),
         h('div', { class: 'row' }, h('button', { class: 'btn small sun', onclick: () => speak(UI.testSentence) }, emo('🔊'), UI.test)),
-        h('label', {}, UI.sessionLen, lenSel),
         h('label', { class: 'inline' }, unlock, UI.unlockAll),
         h('p', { class: 'note' }, syncMode === 'cloud' ? UI.syncCloud : UI.syncLocal),
-        h('div', { class: 'row' }, resetBtn, h('button', { class: 'btn small leaf', onclick: () => close() }, UI.close))));
+        h('div', { class: 'row' }, resetBtn, h('button', { class: 'btn small leaf', onclick: () => close() }, UI.confirm))));
     function close() { overlay.remove(); show(currentScreen === renderHome ? renderHome : currentScreen); }
     document.body.append(overlay);
   }
