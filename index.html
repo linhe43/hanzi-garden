@@ -266,6 +266,12 @@ button:focus-visible { outline: 4px solid var(--sky); outline-offset: 3px; }
 .box-row { display: grid; grid-template-columns: repeat(10, minmax(0, 1fr)); gap: 8px; }
 .box-row .tzg { border-width: 2px; padding: 0; }
 .box-row .tzg.unseen .han { opacity: .18; }
+.box-total { font-size: 26px; text-align: center; margin: 0 0 12px; }
+.box-tabs { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin-bottom: 14px; }
+.box-tabs .btn { flex-direction: column; gap: 2px; font-size: 19px; }
+.box-tabs .btn span { font-size: 15px; opacity: .85; }
+.box-tabs .btn[aria-selected="true"] { background: var(--leaf); color: #fff; box-shadow: 0 6px 0 var(--leaf-d); }
+.py-pop { position: absolute; left: 50%; top: -6px; transform: translate(-50%, -100%); z-index: 3; background: var(--ink); color: var(--bg); font-family: var(--f-py); font-size: 18px; padding: 3px 10px; border-radius: 10px; white-space: nowrap; pointer-events: none; }
 
 /* overlay + toast */
 .overlay { position: fixed; inset: 0; background: rgba(15, 37, 48, .55); display: grid; place-items: center; z-index: 20; padding: 16px; }
@@ -292,6 +298,7 @@ button:focus-visible { outline: 4px solid var(--sky); outline-offset: 3px; }
   .learn-card { grid-template-columns: 1fr; gap: 12px; }
   .options { grid-template-columns: repeat(2, minmax(0, 1fr)); max-width: 440px; }
   .char-row, .box-row { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+  .box-tabs { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .mem-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); max-width: 460px; }
   .bed { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
   .f-hud { flex-wrap: wrap; }
@@ -370,6 +377,7 @@ button:focus-visible { outline: 4px solid var(--sky); outline-offset: 3px; }
     "minutes": "{n} 分钟",
     "noLimit": "不限时",
     "gardenEmpty": "每得到 10 颗星星，花园里就会长出新东西哦",
+    "boxTotal": "一共认识 {n} 个字 / {m}",
     "boxSummary": "认识了 {n} 个字，记牢了 {m} 个字",
     "legendA": "刚认识",
     "legendB": "有印象",
@@ -417,14 +425,10 @@ button:focus-visible { outline: 4px solid var(--sky); outline-offset: 3px; }
   const LIBS = [];        // ordered: age-3-4 ... age-6-7
   const CHAR = new Map(); // char -> { c, py, w, pic, lib, group }
   const ALL = [];
-  const GROUPS = [];      // flat list of { lib, gi, name, icon, chars } across libraries
   function indexCharsets(data) {
     data.libraries.forEach((lib, li) => {
       LIBS.push(lib);
-      lib.groups.forEach((g, gi) => {
-        GROUPS.push({ lib: li, gi, name: g.name, icon: g.icon, chars: g.chars });
-        g.chars.forEach((x) => CHAR.set(x.c, { ...x, lib: li, group: gi }));
-      });
+      lib.groups.forEach((g, gi) => g.chars.forEach((x) => CHAR.set(x.c, { ...x, lib: li, group: gi })));
     });
     ALL.push(...CHAR.keys());
   }
@@ -1358,23 +1362,53 @@ button:focus-visible { outline: 4px solid var(--sky); outline-offset: 3px; }
   function later0(fn, ms) { const t = setTimeout(fn, ms); cleanup = () => clearTimeout(t); }
 
   // ---------- treasure box ----------
-  function renderBox() {
-    const seen = ALL.filter((c) => peek(c).n).length;
-    const solid = ALL.filter((c) => peek(c).l >= 4).length;
+  // Long press shows a character's pinyin for a moment, so a parent can check the reading.
+  function pinyinOnHold(t, x) {
+    let timer = null, pop = null, held = false;
+    const hide = () => { if (pop) { pop.remove(); pop = null; } };
+    t.addEventListener('pointerdown', () => {
+      held = false;
+      timer = setTimeout(() => {
+        held = true;
+        hide();
+        pop = h('span', { class: 'py-pop' }, x.py);
+        t.append(pop);
+        setTimeout(hide, 2000);
+      }, 550);
+    });
+    ['pointerup', 'pointerleave', 'pointercancel'].forEach((ev) => t.addEventListener(ev, () => clearTimeout(timer)));
+    t.addEventListener('contextmenu', (e) => e.preventDefault());
+    return () => held; // true when the last press was a long press
+  }
+
+  function renderBox(li = LIBS.indexOf(currentLib())) {
+    const lib = LIBS[li];
+    const libChars = lib.groups.flatMap((g) => g.chars.map((x) => x.c));
+    const solid = libChars.filter((c) => peek(c).l >= 4).length;
+    const tabs = h('div', { class: 'box-tabs', role: 'tablist' }, LIBS.map((l, k) =>
+      h('button', { class: 'btn small', role: 'tab', 'aria-selected': String(k === li), onclick: () => show(renderBox, k) },
+        l.name, h('span', {}, fmt(UI.libraryProgress, { n: libSeen(l), m: libSize(l) })))));
     const screen = h('div', { class: 'screen' },
-      h('p', { class: 'box-sum' }, fmt(UI.boxSummary, { n: seen, m: solid })),
+      h('p', { class: 'box-total' }, fmt(UI.boxTotal, { n: ALL.filter((c) => peek(c).n).length, m: ALL.length })),
+      tabs,
+      h('p', { class: 'box-sum' }, fmt(UI.boxSummary, { n: libSeen(lib), m: solid })),
       h('div', { class: 'legend' },
         [['lv-a', UI.legendA], ['lv-b', UI.legendB], ['lv-c', UI.legendC], ['lv-d', UI.legendD]]
           .map(([cls, label]) => h('span', {}, h('i', { class: cls }), label))));
-    GROUPS.forEach((g) => {
+    lib.groups.forEach((g, gi) => {
       screen.append(h('div', { class: 'box-group' },
-        h('h3', {}, fmt(UI.levelN, { n: g.gi + 1 }) + ' ' + g.name),
+        h('h3', {}, fmt(UI.levelN, { n: gi + 1 }) + ' ' + g.name),
         h('div', { class: 'box-row' }, g.chars.map((x) => {
           const cls = lvClass(x.c);
           const t = tzg(x.c, cls === 'lv-none' ? 'unseen' : cls);
+          const wasHeld = pinyinOnHold(t, x);
           if (cls !== 'lv-none') {
             t.setAttribute('role', 'button');
-            t.addEventListener('click', () => { sayChar(x.c); t.animate([{ transform: 'scale(1)' }, { transform: 'scale(1.15)' }, { transform: 'scale(1)' }], 300); });
+            t.addEventListener('click', () => {
+              if (wasHeld()) return;
+              sayChar(x.c);
+              t.animate([{ transform: 'scale(1)' }, { transform: 'scale(1.15)' }, { transform: 'scale(1)' }], 300);
+            });
           }
           return t;
         }))));

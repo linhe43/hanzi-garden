@@ -465,6 +465,38 @@ def t_speech(browser):
     pg.close()
 
 
+def t_box(browser):
+    """Treasure box: total line, one tab per library opening on the current one, long press shows pinyin."""
+    rec = {"l": 3, "d": 9e15, "n": True, "r": 3, "w": 0}
+    chars = {c: dict(rec) for c in ["一", "二", "山", "是", "不"]}
+    for size, name in ((WIDE, "wide"), (NARROW, "narrow")):
+        pg = Page(browser, size, state=seeded("age-5-6", chars))
+        p = pg.open()
+        p.click(".home-actions .btn.berry")
+        p.wait_for_selector(".box-tabs")
+        check(p.inner_text(".box-total") == "一共认识 5 个字 / 1000", f"total line: {p.inner_text('.box-total')}")
+        tabs = p.eval_on_selector_all(".box-tabs .btn", "(bs) => bs.map((b) => [b.getAttribute('aria-selected'), b.innerText])")
+        check(len(tabs) == 4 and tabs[2][0] == "true", f"current library tab not selected: {tabs}")
+        check("2 / 300" in tabs[2][1] and "3 / 150" in tabs[0][1], f"tab counts wrong: {tabs}")
+        check(p.locator(".box-group").count() == 30, "5-6 tab should list 30 groups")
+        pg.shot(f"box-{name}")
+        p.locator(".box-tabs .btn").first.click()
+        p.wait_for_selector(".box-row")
+        check(p.locator(".box-group").count() == 15, "3-4 tab should list 15 groups")
+        tile = p.locator(".box-row .tzg").first
+        box = tile.bounding_box()
+        p.mouse.move(box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
+        p.mouse.down()
+        time.sleep(0.8)
+        check(p.locator(".py-pop").count() == 1 and p.inner_text(".py-pop") == "yī", "long press did not show pinyin")
+        pg.said()
+        p.mouse.up()
+        time.sleep(0.2)
+        check(not pg.said(), "long press also spoke the character")
+        pg.shot(f"box-pinyin-{name}")
+        pg.close()
+
+
 CHECKS = {
     "load": t_load,
     "migration": t_migration,
@@ -476,6 +508,7 @@ CHECKS = {
     "nopic": t_nopic,
     "fill": t_fill,
     "speech": t_speech,
+    "box": t_box,
 }
 
 
