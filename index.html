@@ -352,9 +352,12 @@ button:focus-visible { outline: 4px solid var(--sky); outline-offset: 3px; }
     "allDone": "今天的复习都做完啦！",
     "allDoneSub": "去闯关地图玩游戏吧",
     "locked": "先把上一关的字学会，就能打开啦",
-    "promptListen": "找一找，{w}的{c}",
-    "sayChar": "{c}，{w}的{c}",
-    "thisIs": "这是{w}的{c}",
+    "promptWordOf": "找一找，{w}的{c}",
+    "promptCharWord": "找一找：{w}，{c}",
+    "sayCharWordOf": "{c}，{w}的{c}",
+    "sayCharCharWord": "{c}，{w}",
+    "thisIsWordOf": "这是{w}的{c}",
+    "thisIsCharWord": "这是{c}，{w}",
     "listenTap": "点小喇叭，再听一遍",
     "pickPic": "这个图是哪个字？",
     "memoryHint": "把字和图片配成一对",
@@ -604,8 +607,12 @@ button:focus-visible { outline: 4px solid var(--sky); outline-offset: 3px; }
     u.pitch = 1.1;
     speakTimer = setTimeout(() => speechSynthesis.speak(u), 60);
   }
-  const wordOf = (c) => CHAR.get(c).w;
-  const sayChar = (c) => speak(fmt(UI.sayChar, { c, w: wordOf(c) }));
+  // Phrasing follows the library the character belongs to, not the selected one,
+  // so a review sounds the same as when the character was first learned.
+  function speechStyle(c) { return LIBS[CHAR.get(c).lib].profile.speech; } // 'wordOf' | 'charWord'
+  function tpl(base, c) { return UI[base + (speechStyle(c) === 'wordOf' ? 'WordOf' : 'CharWord')]; }
+  const say = (base, c) => fmt(tpl(base, c), { c, w: CHAR.get(c).w });
+  const sayChar = (c) => speak(say('sayChar', c));
 
   // ---------- sound effects ----------
   let actx = null;
@@ -955,7 +962,7 @@ button:focus-visible { outline: 4px solid var(--sky); outline-offset: 3px; }
         h('div', { class: 'learn-card' },
           h('div', { class: 'learn-info' },
             x.pic ? emo(x.pic, 'learn-pic' + (isMany(x.pic) ? ' many' : '')) : null,
-            h('div', { class: 'pinyin' }, x.py),
+            state.settings.showPinyin ? h('div', { class: 'pinyin' }, x.py) : null,
             x.pic ? wordNode(x.w, x.c) : wordNode(x.w, x.c, 'learn-word'),
             h('button', { class: 'btn sun', onclick: () => sayChar(x.c) }, emo('🔊'), UI.hear)),
           h('div', {},
@@ -1028,7 +1035,7 @@ button:focus-visible { outline: 4px solid var(--sky); outline-offset: 3px; }
       const x = CHAR.get(it.c);
       const opts = shuffle([it.c, ...distractors(it.c, cfg.pool, 3, it.m)]);
       let wrong = 0, locked = false, blanks = [];
-      const promptText = fmt(UI.promptListen, { c: it.c, w: x.w });
+      const promptText = say('prompt', it.c);
       if (it.m === 'listen') {
         prompt.replaceChildren(
           h('button', { class: 'speaker', 'aria-label': UI.hear, onclick: () => speak(promptText) }, emo('🔊')),
@@ -1071,7 +1078,7 @@ button:focus-visible { outline: 4px solid var(--sky); outline-offset: 3px; }
             b.classList.add('wrong'); b.disabled = true;
             sfx.bad();
             oops(b);
-            speak(fmt(UI.thisIs, { c: o, w: wordOf(o) }));
+            speak(say('thisIs', o));
             if (wrong === 1) {
               grade(it.c, false);
               if (!it.retried) { it.retried = true; queue.splice(Math.min(2, queue.length), 0, { c: it.c, m: it.m, retried: true }); }
@@ -1271,7 +1278,7 @@ button:focus-visible { outline: 4px solid var(--sky); outline-offset: 3px; }
     cleanup = () => timers.forEach(clearTimeout);
 
     const target = () => order[idx];
-    const promptText = () => fmt(UI.promptListen, { c: target(), w: wordOf(target()) });
+    const promptText = () => say('prompt', target());
     const scoreEl = h('div', { class: 'f-score', 'aria-live': 'polite' });
     const renderScore = () => { scoreEl.textContent = '🌷'.repeat(idx) + '🌱'.repeat(order.length - idx); };
     renderScore();
@@ -1326,7 +1333,7 @@ button:focus-visible { outline: 4px solid var(--sky); outline-offset: 3px; }
       } else {
         shake(p.el);
         sfx.bad();
-        speak(fmt(UI.thisIs, { c: p.c, w: wordOf(p.c) }));
+        speak(say('thisIs', p.c));
         wrongs++;
         if (!missed) { missed = true; grade(target(), false); }
         if (wrongs >= 2) plots.get(target()).el.classList.add('hint');

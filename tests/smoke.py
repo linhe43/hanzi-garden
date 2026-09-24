@@ -49,6 +49,9 @@ class Page:
         init.append("localStorage.setItem('hanzi-garden-session-v1', JSON.stringify({used: %d, last: Date.now()}));" % session_used)
         # Only seed storage on the very first load, so reloads see what the app saved.
         self.ctx.add_init_script("if (!sessionStorage.getItem('hg-seeded')) { sessionStorage.setItem('hg-seeded', '1'); %s }" % " ".join(init))
+        # Record what the app says instead of speaking it.
+        self.ctx.add_init_script("""window.__said = [];
+          if (window.speechSynthesis) speechSynthesis.speak = (u) => { if (u.text.trim()) window.__said.push(u.text); };""")
         self.p = self.ctx.new_page()
         self.p.on("pageerror", lambda e: self.errors.append(str(e)))
 
@@ -56,6 +59,9 @@ class Page:
         self.p.goto(BASE + path)
         self.p.wait_for_selector(".home-actions")
         return self.p
+
+    def said(self):
+        return self.p.evaluate("window.__said.splice(0)")
 
     def state(self):
         return json.loads(self.p.evaluate(f"localStorage.getItem({json.dumps(LS_KEY)})"))
@@ -417,6 +423,48 @@ def t_fill(browser):
     pg.close()
 
 
+def t_speech(browser):
+    """Speech template follows the character's own library; the pinyin toggle controls the learn card."""
+    # On 5-6, reviewing 木 (3-4, wordOf) still says "木，木头的木"; 了 (5-6, charWord) says "了，好了".
+    pg = Page(browser, WIDE, state=seeded("age-5-6", {"木": {"l": 2, "d": 0, "n": True, "r": 2, "w": 0}}, new_today=1))
+    p = pg.open()
+    p.click(".home-actions .btn.sun")
+    p.wait_for_selector(".options")
+    time.sleep(0.6)
+    p.click('.opt[aria-label="木"]')
+    time.sleep(0.3)
+    said = pg.said()
+    check("木，木头的木" in said, f"wordOf template not used for 木: {said}")
+    check(all("好了" not in t for t in said), "wrong character spoken")
+    p.goto(BASE)
+    p.wait_for_selector(".home-actions")
+    open_group(p, 0)
+    pg.said()
+    p.click('.char-row .tzg:has-text("了")')
+    time.sleep(0.3)
+    check("了，好了" in pg.said(), "charWord template not used for 了")
+    open_act(p, "听音找字")
+    time.sleep(0.6)
+    check(any(t.startswith("找一找：") for t in pg.said()), "charWord prompt template not used")
+    pg.close()
+
+    # Pinyin: off by default on 3-4, on after the toggle.
+    pg = Page(browser, WIDE)
+    p = pg.open()
+    open_group(p, 0)
+    open_act(p, "学新字")
+    check(p.locator(".learn-card .pinyin").count() == 0, "pinyin shown while the toggle is off")
+    p.goto(BASE)
+    p.wait_for_selector(".home-actions")
+    open_settings(p)
+    p.click(".panel label.inline input >> nth=0")
+    p.click(".panel .btn.leaf")
+    open_group(p, 0)
+    open_act(p, "学新字")
+    check(p.locator(".learn-card .pinyin").count() == 1, "pinyin hidden while the toggle is on")
+    pg.close()
+
+
 CHECKS = {
     "load": t_load,
     "migration": t_migration,
@@ -427,6 +475,7 @@ CHECKS = {
     "daily": t_daily,
     "nopic": t_nopic,
     "fill": t_fill,
+    "speech": t_speech,
 }
 
 
